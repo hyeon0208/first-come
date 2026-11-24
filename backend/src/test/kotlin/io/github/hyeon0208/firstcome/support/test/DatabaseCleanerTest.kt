@@ -11,13 +11,23 @@ class DatabaseCleanerTest : BaseServiceTest() {
     @Autowired
     private lateinit var jdbcTemplate: JdbcTemplate
 
+    private fun count(table: String): Long =
+        jdbcTemplate.queryForObject("SELECT COUNT(*) FROM $table", Long::class.java)!!
+
     init {
-        given("테이블에 데이터가 있을 때") {
-            jdbcTemplate.update("INSERT INTO users (name) VALUES ('홍길동')")
+        given("사용자가 한 명 있을 때") {
+            fixture.createUser()
+
             `when`("정리하면") {
                 databaseCleaner.clean()
-                then("모든 테이블이 빈다") {
-                    jdbcTemplate.queryForObject("SELECT COUNT(*) FROM users", Long::class.java) shouldBe 0L
+
+                then("테스트가 만든 데이터는 지워진다") {
+                    count("users") shouldBe 0L
+                }
+                then("고정 데이터(공연 3개, 좌석 1,008석)와 마이그레이션 이력은 남는다") {
+                    count("shows") shouldBe 3L
+                    count("seats") shouldBe 1_008L
+                    count("flyway_schema_history") shouldBe 1L
                 }
             }
         }

@@ -2,34 +2,39 @@ package io.github.hyeon0208.firstcome.reservation.api
 
 import io.github.hyeon0208.firstcome.reservation.application.ReservationFacade
 import io.github.hyeon0208.firstcome.reservation.application.ReservationReadService
-import io.github.hyeon0208.firstcome.reservation.application.dto.CreateReservationRequest
+import io.github.hyeon0208.firstcome.reservation.application.dto.QuoteResponse
 import io.github.hyeon0208.firstcome.reservation.application.dto.ReservationResponse
+import io.github.hyeon0208.firstcome.support.web.CurrentUserId
+import io.github.hyeon0208.firstcome.support.web.PracticeRunHeader
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
-import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 
 @RestController
-@RequestMapping("/api")
+@RequestMapping("/api/v1/reservations")
 class ReservationController(
     private val reservationFacade: ReservationFacade,
     private val reservationReadService: ReservationReadService,
 ) : ReservationApi {
+    @GetMapping("/quote")
+    override fun getQuote(@CurrentUserId userId: Long, @RequestHeader(PracticeRunHeader.NAME) performanceId: Long): QuoteResponse =
+        reservationReadService.getQuote(userId, performanceId)
 
-    @PostMapping("/reservations")
+    @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    override fun createReservation(
+    override fun reserve(
+        @CurrentUserId userId: Long,
+        @RequestHeader(PracticeRunHeader.NAME) performanceId: Long,
         @RequestHeader("Idempotency-Key") idempotencyKey: String,
-        @RequestBody request: CreateReservationRequest,
     ): ReservationResponse =
-        reservationFacade.createReservation(request, idempotencyKey)
+        reservationFacade.reserve(userId, performanceId, idempotencyKey)
 
-    @GetMapping("/users/{userId}/reservations")
-    override fun getUserReservations(@PathVariable userId: Long): List<ReservationResponse> =
-        reservationReadService.getUserReservations(userId)
+    @GetMapping("/by-performance/{performanceId}")
+    override fun getConfirmedReservation(@CurrentUserId userId: Long, @PathVariable performanceId: Long): ReservationResponse =
+        reservationReadService.getConfirmedReservation(userId, performanceId)
 }

@@ -2,13 +2,17 @@ package io.github.hyeon0208.firstcome.support.error
 
 import jakarta.servlet.http.HttpServletRequest
 import org.slf4j.LoggerFactory
+import org.springframework.core.NestedRuntimeException
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.dao.PessimisticLockingFailureException
 import org.springframework.http.ResponseEntity
 import org.springframework.http.converter.HttpMessageNotReadableException
 import org.springframework.transaction.CannotCreateTransactionException
 import org.springframework.web.HttpMediaTypeNotSupportedException
 import org.springframework.web.HttpRequestMethodNotSupportedException
+import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.MissingRequestHeaderException
+import org.springframework.web.bind.MissingServletRequestParameterException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.method.annotation.HandlerMethodValidationException
@@ -29,7 +33,9 @@ class GlobalExceptionHandler {
 
     @ExceptionHandler(
         HandlerMethodValidationException::class,
+        MethodArgumentNotValidException::class,
         MissingRequestHeaderException::class,
+        MissingServletRequestParameterException::class,
         MethodArgumentTypeMismatchException::class,
     )
     fun handleInvalidRequest(exception: Exception, request: HttpServletRequest): ResponseEntity<ErrorResponse> =
@@ -47,8 +53,9 @@ class GlobalExceptionHandler {
     fun handleUnsupportedMediaType(exception: HttpMediaTypeNotSupportedException, request: HttpServletRequest): ResponseEntity<ErrorResponse> =
         response(request, CommonErrorCode.UNSUPPORTED_MEDIA_TYPE, detail = exception.message)
 
-    @ExceptionHandler(PessimisticLockingFailureException::class)
-    fun handleLockConflict(exception: PessimisticLockingFailureException, request: HttpServletRequest): ResponseEntity<ErrorResponse> =
+    // 잠금 대기 초과·교착, 그리고 유일 제약이 막은 동시 요청은 다시 시도하면 되는 충돌이다.
+    @ExceptionHandler(PessimisticLockingFailureException::class, DataIntegrityViolationException::class)
+    fun handleLockConflict(exception: NestedRuntimeException, request: HttpServletRequest): ResponseEntity<ErrorResponse> =
         response(request, CommonErrorCode.LOCK_CONFLICT, detail = exception.mostSpecificCause.message)
 
     @ExceptionHandler(CannotCreateTransactionException::class)
@@ -66,15 +73,10 @@ class GlobalExceptionHandler {
         message: String = errorCode.message,
         cause: Throwable? = null,
     ): ResponseEntity<ErrorResponse> {
-        logger.error(
-            "요청 처리 실패 method={} uri={} status={} code={} detail={}",
-            request.method,
-            request.requestURI,
-            errorCode.status.value(),
-            errorCode.name,
-            detail,
-            cause,
-        )
+        val logFormat = "요청 거절 method={} uri={} status={} code={} detail={}"
+        val arguments = arrayOf(request.method, request.requestURI, errorCode.status.value(), errorCode.name, detail, cause)
+        // 4xx는 예매 중에 흔히 만나는 거절(이미 잡힌 좌석 등)이라 INFO로, 서버 쪽 문제만 ERROR로 남긴다.
+        if (errorCode.status.is5xxServerError) logger.error(logFormat, *arguments) else logger.info(logFormat, *arguments)
         return ResponseEntity
             .status(errorCode.status)
             .body(ErrorResponse(code = errorCode.name, message = message))

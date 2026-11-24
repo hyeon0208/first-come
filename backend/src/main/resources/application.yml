@@ -12,6 +12,10 @@ spring:
         default_batch_fetch_size: 100
   flyway:
     enabled: true
+  datasource:
+    hikari:
+      # 좌석을 범위로 UPDATE하는 문장이 인덱스 빈 구간을 잠가 교착하지 않도록 READ COMMITTED로 실행한다.
+      transaction-isolation: TRANSACTION_READ_COMMITTED
 
 server:
   error:
@@ -22,3 +26,36 @@ management:
     web:
       exposure:
         include: health
+
+# 예매 규칙. 값의 출처는 예매 규칙 표다.
+booking:
+  # 예매 화면에 들어온 순간부터 좌석을 고를 수 있는 시간
+  seat-selection-duration: 10m
+  # 첫 좌석을 누른 순간부터 가선점이 유지되는 시간
+  preselect-duration: 7m
+  # 선택 완료부터 결제를 끝내야 하는 시간
+  hold-duration: 7m
+  # 한 회차에서 한 참가자가 가져갈 수 있는 매수
+  max-seats: 4
+  # 연습 시작부터 예매 오픈까지
+  open-delay: 10s
+  # 공연 시작 시각: 회차를 만든 날로부터 이 일수 뒤 18:00
+  show-start-days: 30
+  # 오픈 뒤 이 시간 안에 입장하지 않은 회차는 중단으로 끝낸다
+  enter-grace: 10m
+  # 예매 가능 시간이 끝난 뒤에도 결제 중이면 결제 결과를 기다리는 시간
+  paying-grace: 1m
+  # 끝난 회차의 좌석과 예매 데이터를 지우기까지
+  purge-delay: 10m
+  # 동시에 진행되는 회차 수의 상한
+  max-active-performances: 10
+  # 방치된 회차를 끝내고 끝난 회차를 지우는 작업의 주기
+  sweep-interval: PT5S
+  sweep-enabled: true
+
+reservation:
+  # 장당 예매수수료
+  fee-per-ticket: 2000
+
+session:
+  cookie-secure: false

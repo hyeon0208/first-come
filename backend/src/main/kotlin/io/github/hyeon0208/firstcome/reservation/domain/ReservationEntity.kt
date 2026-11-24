@@ -10,31 +10,29 @@ import jakarta.persistence.GeneratedValue
 import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
 import jakarta.persistence.Table
-import jakarta.persistence.UniqueConstraint
 import java.time.LocalDateTime
 import org.hibernate.annotations.JdbcTypeCode
 import org.hibernate.type.SqlTypes
 
 @Entity
-@Table(
-    name = "reservations",
-    uniqueConstraints = [
-        UniqueConstraint(name = "uk_reservations_user_idempotency_key", columnNames = ["user_id", "idempotency_key"]),
-        UniqueConstraint(name = "uk_reservations_id_performance", columnNames = ["id", "performance_id"]),
-    ],
-)
+@Table(name = "reservations")
 class ReservationEntity(
     @Column(nullable = false)
-    val userId: Long,
+    val performanceId: Long,
 
     @Column(nullable = false)
-    val performanceId: Long,
+    val participantNo: Int,
 
     @Column(nullable = false, length = IDEMPOTENCY_KEY_MAX_LENGTH)
     val idempotencyKey: String,
 
+    // 좌석 가격의 합
     @Column(nullable = false)
-    val amount: Long,
+    val ticketAmount: Long,
+
+    // 예매수수료의 합
+    @Column(nullable = false)
+    val feeAmount: Long,
 ) : BaseEntity() {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -54,19 +52,27 @@ class ReservationEntity(
         protected set
 
     init {
-        requireRule(amount >= 0) { "결제 금액은 0원 이상이어야 합니다." }
         requireRule(idempotencyKey.length in 1..IDEMPOTENCY_KEY_MAX_LENGTH) { "멱등 키는 1~${IDEMPOTENCY_KEY_MAX_LENGTH}자여야 합니다." }
+        requireRule(ticketAmount >= 0 && feeAmount >= 0) { "금액은 0원 이상이어야 합니다." }
     }
 
+    // 실제로 결제하는 금액
+    fun amount(): Long =
+        ticketAmount + feeAmount
+
+    // 화면에 보이는 예매번호
+    fun reservationNo(): String =
+        "T%010d".format(id)
+
     fun confirm(paymentTransactionId: String, now: LocalDateTime) {
-        check(status == ReservationStatus.PENDING) { "결제 대기 상태의 예약만 확정할 수 있습니다. reservationId=$id status=$status" }
+        check(status == ReservationStatus.PENDING) { "결제 대기 상태의 예매만 확정할 수 있습니다. reservationId=$id status=$status" }
         status = ReservationStatus.CONFIRMED
         this.paymentTransactionId = paymentTransactionId
         confirmedAt = now
     }
 
     fun fail(paymentTransactionId: String?) {
-        check(status == ReservationStatus.PENDING) { "결제 대기 상태의 예약만 실패로 바꿀 수 있습니다. reservationId=$id status=$status" }
+        check(status == ReservationStatus.PENDING) { "결제 대기 상태의 예매만 실패로 바꿀 수 있습니다. reservationId=$id status=$status" }
         status = ReservationStatus.FAILED
         this.paymentTransactionId = paymentTransactionId
     }

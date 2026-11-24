@@ -4,5 +4,5 @@ import io.github.hyeon0208.firstcome.show.domain.SeatEntity
 import org.springframework.data.jpa.repository.JpaRepository
 
 interface JpaSeatRepository : JpaRepository<SeatEntity, Long> {
-    fun findAllByVenueId(venueId: Long): List<SeatEntity>
+    fun findAllByVenueIdOrderById(venueId: Long): List<SeatEntity>
 }

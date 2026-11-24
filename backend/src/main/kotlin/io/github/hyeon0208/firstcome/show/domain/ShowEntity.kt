@@ -1,7 +1,6 @@
 package io.github.hyeon0208.firstcome.show.domain
 
 import io.github.hyeon0208.firstcome.support.domain.BaseEntity
-import io.github.hyeon0208.firstcome.support.error.requireRule
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.GeneratedValue
@@ -15,18 +14,16 @@ class ShowEntity(
     @Column(nullable = false)
     val venueId: Long,
 
-    @Column(nullable = false, length = TITLE_MAX_LENGTH)
+    @Column(nullable = false, length = 100)
     val title: String,
+
+    @Column(nullable = false)
+    val runningMinutes: Int,
+
+    @Column(nullable = false, length = 30)
+    val ageLimit: String,
 ) : BaseEntity() {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     val id: Long = 0L
-
-    init {
-        requireRule(title.isNotBlank() && title.length <= TITLE_MAX_LENGTH) { "공연 제목은 1~${TITLE_MAX_LENGTH}자여야 합니다." }
-    }
-
-    companion object {
-        const val TITLE_MAX_LENGTH = 100
-    }
 }

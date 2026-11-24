@@ -1,6 +1,7 @@
 package io.github.hyeon0208.firstcome.support.config
 
 import io.swagger.v3.oas.models.media.StringSchema
+import io.github.hyeon0208.firstcome.support.web.CurrentUserId
 import java.time.LocalDateTime
 import org.springdoc.core.utils.SpringDocUtils
 import org.springframework.context.annotation.Configuration
@@ -9,6 +10,7 @@ import org.springframework.context.annotation.Configuration
 class OpenApiConfiguration {
 
     init {
+        SpringDocUtils.getConfig().addAnnotationsToIgnore(CurrentUserId::class.java)
         SpringDocUtils.getConfig().replaceWithSchema(
             LocalDateTime::class.java,
             StringSchema()

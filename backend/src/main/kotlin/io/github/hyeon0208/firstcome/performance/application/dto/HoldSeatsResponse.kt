@@ -1,20 +1,10 @@
 package io.github.hyeon0208.firstcome.performance.application.dto
 
-import java.time.LocalDateTime
-
+// 선택 완료의 결과. 못 잡은 좌석이 하나라도 있으면 아무것도 선점하지 않고 그 목록을 돌려준다.
 data class HoldSeatsResponse(
-    val performanceId: Long,
-    val seats: List<PerformanceSeatResponse>,
-    val totalPrice: Long,
-    val holdExpiresAt: LocalDateTime,
+    val heldSeatIds: List<Long>,
+    val unselectableSeatIds: List<Long>,
 ) {
-    companion object {
-        fun of(performanceId: Long, seats: List<PerformanceSeatResponse>, holdExpiresAt: LocalDateTime): HoldSeatsResponse =
-            HoldSeatsResponse(
-                performanceId = performanceId,
-                seats = seats,
-                totalPrice = seats.sumOf { it.price },
-                holdExpiresAt = holdExpiresAt,
-            )
-    }
+    val isHeld: Boolean
+        get() = unselectableSeatIds.isEmpty()
 }

@@ -1,36 +1,31 @@
 package io.github.hyeon0208.firstcome.reservation.application.dto
 
-import io.github.hyeon0208.firstcome.performance.domain.PerformanceEntity
 import io.github.hyeon0208.firstcome.reservation.domain.ReservationEntity
 import io.github.hyeon0208.firstcome.reservation.domain.ReservationStatus
-import io.github.hyeon0208.firstcome.show.domain.ShowEntity
 import java.time.LocalDateTime
 
 data class ReservationResponse(
     val reservationId: Long,
-    val status: ReservationStatus,
+    val reservationNo: String,
     val performanceId: Long,
-    val showTitle: String,
-    val startAt: LocalDateTime,
+    val status: ReservationStatus,
     val seats: List<ReservationSeatResponse>,
+    val ticketAmount: Long,
+    val feeAmount: Long,
     val amount: Long,
     val confirmedAt: LocalDateTime?,
 ) {
     companion object {
-        fun of(
-            reservation: ReservationEntity,
-            show: ShowEntity,
-            performance: PerformanceEntity,
-            seats: List<ReservationSeatResponse>,
-        ): ReservationResponse =
+        fun of(reservation: ReservationEntity, seats: List<ReservationSeatResponse>): ReservationResponse =
             ReservationResponse(
                 reservationId = reservation.id,
+                reservationNo = reservation.reservationNo(),
+                performanceId = reservation.performanceId,
                 status = reservation.status,
-                performanceId = performance.id,
-                showTitle = show.title,
-                startAt = performance.startAt,
                 seats = seats,
-                amount = reservation.amount,
+                ticketAmount = reservation.ticketAmount,
+                feeAmount = reservation.feeAmount,
+                amount = reservation.amount(),
                 confirmedAt = reservation.confirmedAt,
             )
     }

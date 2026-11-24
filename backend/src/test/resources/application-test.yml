@@ -12,3 +12,7 @@ logging:
   level:
     org.hibernate.SQL: DEBUG
     org.hibernate.orm.jdbc.bind: TRACE
+
+booking:
+  # 테스트는 시계를 직접 옮기고 정리 작업을 직접 부른다.
+  sweep-enabled: false

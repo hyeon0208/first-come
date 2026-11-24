@@ -8,16 +8,9 @@ import jakarta.persistence.GeneratedValue
 import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
 import jakarta.persistence.Table
-import jakarta.persistence.UniqueConstraint
 
 @Entity
-@Table(
-    name = "reservation_seats",
-    uniqueConstraints = [
-        UniqueConstraint(name = "uk_reservation_seats_reservation_performance_seat", columnNames = ["reservation_id", "performance_seat_id"]),
-        UniqueConstraint(name = "uk_reservation_seats_active_performance_seat", columnNames = ["performance_seat_id", "active"]),
-    ],
-)
+@Table(name = "reservation_seats")
 class ReservationSeatEntity(
     @Column(nullable = false)
     val reservationId: Long,
@@ -26,8 +19,9 @@ class ReservationSeatEntity(
     val performanceId: Long,
 
     @Column(nullable = false)
-    val performanceSeatId: Long,
+    val seatId: Long,
 
+    // 예매 당시 가격
     @Column(nullable = false)
     val price: Long,
 ) : BaseEntity() {
@@ -35,7 +29,7 @@ class ReservationSeatEntity(
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     val id: Long = 0L
 
-    // 확정이면 true, 아니면 null: (좌석, active) 유니크로 한 좌석이 두 번 확정되는 것만 막는다.
+    // 확정이면 true, 아니면 null: (회차, 좌석, active) 유일 제약으로 한 좌석이 두 번 확정되는 것을 막는다.
     @Column
     var active: Boolean? = null
         protected set

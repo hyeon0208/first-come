@@ -33,10 +33,10 @@ class CommonErrorResponseTest : BaseControllerTest() {
                 }
             }
 
-            `when`("JSON을 받는 경로(/api/users)에 text/plain으로 요청하면") {
-                val result = mockMvc.post("/api/users") {
+            `when`("JSON을 받는 경로(/api/v1/users)에 text/plain으로 요청하면") {
+                val result = mockMvc.post("/api/v1/users") {
                     contentType = MediaType.TEXT_PLAIN
-                    content = "홍길동"
+                    content = "연습생"
                 }
 
                 then("415 UNSUPPORTED_MEDIA_TYPE을 {code, message}로 돌려준다") {

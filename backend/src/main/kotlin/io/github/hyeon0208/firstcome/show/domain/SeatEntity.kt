@@ -1,7 +1,7 @@
 package io.github.hyeon0208.firstcome.show.domain
 
+import io.github.hyeon0208.firstcome.show.SeatGrade
 import io.github.hyeon0208.firstcome.support.domain.BaseEntity
-import io.github.hyeon0208.firstcome.support.error.requireRule
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
@@ -10,36 +10,37 @@ import jakarta.persistence.GeneratedValue
 import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
 import jakarta.persistence.Table
-import jakarta.persistence.UniqueConstraint
 import org.hibernate.annotations.JdbcTypeCode
 import org.hibernate.type.SqlTypes
 
 @Entity
-@Table(
-    name = "seats",
-    uniqueConstraints = [UniqueConstraint(name = "uk_seats_venue_position", columnNames = ["venue_id", "row_no", "column_no"])],
-)
+@Table(name = "seats")
 class SeatEntity(
     @Column(nullable = false)
     val venueId: Long,
 
-    @Column(name = "row_no", nullable = false)
-    val row: Int,
+    @Column(nullable = false)
+    val floor: Int,
 
-    @Column(name = "column_no", nullable = false)
-    val column: Int,
+    @Column(nullable = false, length = 1)
+    val block: String,
+
+    @Column(nullable = false)
+    val rowNo: Int,
+
+    @Column(nullable = false)
+    val seatNo: Int,
 
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(nullable = false, length = 10)
     val grade: SeatGrade,
-
 ) : BaseEntity() {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     val id: Long = 0L
 
-    init {
-        requireRule(row >= 1 && column >= 1) { "좌석의 행과 열은 1 이상이어야 합니다." }
-    }
+    // 예: "1층 B구역 3열 1번"
+    val displayName: String
+        get() = "${floor}층 ${block}구역 ${rowNo}열 ${seatNo}번"
 }

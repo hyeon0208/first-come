@@ -1,7 +1,6 @@
 package io.github.hyeon0208.firstcome.performance.domain
 
 import io.github.hyeon0208.firstcome.support.domain.BaseEntity
-import io.github.hyeon0208.firstcome.support.error.requireRule
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
@@ -9,23 +8,14 @@ import jakarta.persistence.Enumerated
 import jakarta.persistence.GeneratedValue
 import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
-import jakarta.persistence.Index
 import jakarta.persistence.Table
-import jakarta.persistence.UniqueConstraint
-import java.time.Duration
 import java.time.LocalDateTime
 import org.hibernate.annotations.JdbcTypeCode
 import org.hibernate.type.SqlTypes
 
+// 상태는 조건부 UPDATE로만 바꾼다(JpaPerformanceSeatRepository). 이 엔티티는 읽는 용도다.
 @Entity
-@Table(
-    name = "performance_seats",
-    uniqueConstraints = [
-        UniqueConstraint(name = "uk_performance_seats_performance_seat", columnNames = ["performance_id", "seat_id"]),
-        UniqueConstraint(name = "uk_performance_seats_id_performance", columnNames = ["id", "performance_id"]),
-    ],
-    indexes = [Index(name = "idx_performance_seats_holder", columnList = "holder_id, performance_id")],
-)
+@Table(name = "performance_seats")
 class PerformanceSeatEntity(
     @Column(nullable = false)
     val performanceId: Long,
@@ -35,33 +25,24 @@ class PerformanceSeatEntity(
 
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.VARCHAR)
-    @Column(nullable = false, length = 10)
+    @Column(nullable = false, length = 12)
     val status: PerformanceSeatStatus,
 
-    val holderId: Long?,
+    val participantNo: Int?,
 
-    val holdExpiresAt: LocalDateTime?,
+    val expiresAt: LocalDateTime?,
 ) : BaseEntity() {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     val id: Long = 0L
 
-    fun statusAt(now: LocalDateTime): PerformanceSeatStatus =
-        if (status == PerformanceSeatStatus.HELD && holdExpiresAt?.isBefore(now) == true) {
-            PerformanceSeatStatus.AVAILABLE
-        } else {
-            status
+    // 누군가 가져간 좌석인가. 가선점과 선점은 만료 시각이 지나면 풀린 것으로 본다.
+    // 결제 중인 좌석은 만료 시각이 지나도 확정 단계가 결과를 정할 때까지 풀리지 않는다.
+    // 같은 판정이 조건부 UPDATE의 WHERE(JpaPerformanceSeatRepository.preselect)에도 있다.
+    fun isTakenAt(now: LocalDateTime): Boolean =
+        when (status) {
+            PerformanceSeatStatus.AVAILABLE -> false
+            PerformanceSeatStatus.PRESELECTED, PerformanceSeatStatus.HELD -> expiresAt?.isBefore(now) == false
+            PerformanceSeatStatus.PAYING, PerformanceSeatStatus.RESERVED -> true
         }
-
-    init {
-        val holdInfoPresent = holderId != null && holdExpiresAt != null
-        val holdInfoAbsent = holderId == null && holdExpiresAt == null
-        requireRule(if (status in PerformanceSeatStatus.OWNED) holdInfoPresent else holdInfoAbsent) {
-            "임시 배정이나 결제 중 상태일 때만 임시 배정 사용자와 만료 시각이 있어야 합니다."
-        }
-    }
-
-    companion object {
-        val HOLD_DURATION: Duration = Duration.ofMinutes(5)
-    }
 }

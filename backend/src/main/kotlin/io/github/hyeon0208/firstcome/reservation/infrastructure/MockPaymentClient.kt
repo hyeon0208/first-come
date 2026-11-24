@@ -6,11 +6,10 @@ import io.github.hyeon0208.firstcome.reservation.application.PaymentRequest
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import org.slf4j.LoggerFactory
-import org.springframework.context.annotation.Profile
 import org.springframework.stereotype.Component
 
+// shortcut: 서버 안에서 바로 승인하는 임시 구현. 별도 컨테이너의 모의 결제 서버를 부르는 구현으로 바꾼다.
 @Component
-@Profile("local")
 class MockPaymentClient : PaymentClient {
     private val logger = LoggerFactory.getLogger(javaClass)
     private val approvalsByReservationId = ConcurrentHashMap<Long, PaymentApproval>()
@@ -18,12 +17,7 @@ class MockPaymentClient : PaymentClient {
     override fun pay(request: PaymentRequest): PaymentApproval =
         approvalsByReservationId.computeIfAbsent(request.reservationId) {
             PaymentApproval(transactionId = "MOCK-${UUID.randomUUID()}").also {
-                logger.info(
-                    "모의 결제 승인 reservationId={} amount={} transactionId={}",
-                    request.reservationId,
-                    request.amount,
-                    it.transactionId,
-                )
+                logger.info("모의 결제 승인 reservationId={} amount={} transactionId={}", request.reservationId, request.amount, it.transactionId)
             }
         }
 

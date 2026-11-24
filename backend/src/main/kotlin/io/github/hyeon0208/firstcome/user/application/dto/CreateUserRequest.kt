@@ -1,5 +1,5 @@
 package io.github.hyeon0208.firstcome.user.application.dto
 
 data class CreateUserRequest(
-    val name: String,
+    val nickname: String,
 )
