@@ -1,0 +1,13 @@
+.git
+.gradle
+.idea
+.kotlin
+**/build
+**/out
+**/src/test
+frontend
+load
+scripts
+intent
+docs
+*.md

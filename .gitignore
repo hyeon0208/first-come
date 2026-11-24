@@ -1,0 +1,25 @@
+.DS_Store
+.idea/
+.vscode/
+*.iml
+
+# Gradle, Kotlin
+.gradle/
+.kotlin/
+build/
+out/
+!gradle/wrapper/gradle-wrapper.jar
+
+# 화면
+frontend/node_modules/
+frontend/dist/
+frontend/test-results/
+frontend/playwright-report/
+frontend/.env.local
+frontend/.env.*.local
+
+# 환경 값
+/.env
+
+# 작업 문서(spec, plan)
+intent/

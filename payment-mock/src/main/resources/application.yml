@@ -1,0 +1,8 @@
+spring:
+  application:
+    name: payment-mock
+
+server:
+  port: 8081
+  error:
+    include-message: never

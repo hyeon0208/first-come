@@ -1,0 +1,7 @@
+spring:
+  datasource:
+    url: ${DATABASE_URL:jdbc:mysql://localhost:3306/firstcome}
+    username: ${DATABASE_USERNAME:firstcome}
+    password: ${DATABASE_PASSWORD:firstcome}
+    hikari:
+      connection-init-sql: SET SESSION innodb_lock_wait_timeout = 3
