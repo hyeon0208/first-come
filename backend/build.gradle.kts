@@ -60,4 +60,6 @@ allOpen {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+    // 실제 시간으로 몇 분씩 도는 테스트(난이도 조정)는 -Pslow 를 줄 때만 돌린다.
+    systemProperty("kotest.tags", if (project.hasProperty("slow")) "slow" else "!slow")
 }

@@ -28,8 +28,9 @@ services:
     environment:
       TZ: Asia/Seoul
       JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=75
+    # 사용자가 직접 부를 일이 없다. 확인용으로 이 컴퓨터에만 연다.
     ports:
-      - "8081:8081"
+      - "127.0.0.1:8081:8081"
     cpus: 1.0
     mem_limit: 512m
 

@@ -27,6 +27,10 @@ class PaymentController(
         }
         Thread.sleep(if (mode == FaultMode.DELAY) faultSettings.delay else randomDelay())
         val transactionId = paymentStore.approve(request.orderId)
+        if (transactionId == null) {
+            logger.info("결제 거절(이미 취소된 주문) orderId={}", request.orderId)
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(DeclinedResponse(code = "CANCELLED", message = "이미 취소된 주문입니다."))
+        }
         logger.info("결제 승인 orderId={} amount={} transactionId={}", request.orderId, request.amount, transactionId)
         if (mode == FaultMode.NO_RESPONSE) {
             // 승인은 됐지만 응답이 돌아가지 않는 상황. 부른 쪽의 응답 대기 시간이 먼저 끝난다.

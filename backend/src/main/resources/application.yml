@@ -58,6 +58,31 @@ booking:
   sweep-interval: PT5S
   sweep-enabled: true
 
+# 가상 경쟁자. 예매 오픈 시각부터 arrival-window에 걸쳐 고르게 들어와, 한 명이 1~4석(평균 2.5석)을 사용자와 같은 경로로 가져간다.
+competitor:
+  enabled: true
+  # 좌석 하나를 누르고 다음 좌석을 누르기까지
+  press-interval-min: 150ms
+  press-interval-max: 450ms
+  # 선택 완료 뒤 결제를 누르기까지
+  checkout-delay-min: 500ms
+  checkout-delay-max: 1500ms
+  # 좌석은 1,008석이다. sold-out-seconds는 화면에 보여 주는 매진까지의 대략적인 시간이고, 비우면 매진되지 않는 난이도다.
+  # 값은 가상 경쟁자만 돌려 잰 것이다(DifficultyCalibrationTest, 2026-11-25: 보통 98.7초, 어려움 10.6초).
+  difficulties:
+    easy:
+      count: 200
+      arrival-window: 5m
+      sold-out-seconds:
+    normal:
+      count: 500
+      arrival-window: 2m
+      sold-out-seconds: 100
+    hard:
+      count: 1000
+      arrival-window: 25s
+      sold-out-seconds: 10
+
 reservation:
   # 장당 예매수수료
   fee-per-ticket: 2000

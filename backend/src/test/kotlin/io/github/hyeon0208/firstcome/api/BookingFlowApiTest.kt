@@ -63,6 +63,19 @@ class BookingFlowApiTest : BaseControllerTest() {
                 }
             }
 
+            `when`("난이도 목록을 보면") {
+                val result = mockMvc.get("/api/v1/difficulties")
+
+                then("세 난이도의 가상 경쟁자 수와 매진까지의 시간이 나온다(쉬움은 매진되지 않는다)") {
+                    result.andExpect {
+                        jsonPath("$[*].difficulty") { value(org.hamcrest.Matchers.contains("EASY", "NORMAL", "HARD")) }
+                        jsonPath("$[*].competitorCount") { value(org.hamcrest.Matchers.contains(200, 500, 1000)) }
+                        jsonPath("$[0].soldOutSeconds") { value(null) }
+                        jsonPath("$[2].soldOutSeconds") { value(10) }
+                    }
+                }
+            }
+
             `when`("1자 닉네임을 넣으면") {
                 val result = mockMvc.post("/api/v1/users") {
                     contentType = MediaType.APPLICATION_JSON

@@ -60,6 +60,20 @@ class PaymentControllerTest : BehaviorSpec() {
                 }
             }
 
+            `when`("취소된 주문 9에 뒤늦게 승인을 요청하면") {
+                val result = mockMvc.post("/payments") {
+                    contentType = MediaType.APPLICATION_JSON
+                    content = """{"orderId": 9, "amount": 10000}"""
+                }
+
+                then("승인하지 않는다(409 CANCELLED). 늦은 승인이 취소 뒤에 남지 않는다") {
+                    result.andExpect {
+                        status { isConflict() }
+                        jsonPath("$.code") { value("CANCELLED") }
+                    }
+                }
+            }
+
             `when`("장애 주입을 켜지 않은 채 /test/faults 를 부르면") {
                 val result = mockMvc.put("/test/faults") {
                     contentType = MediaType.APPLICATION_JSON
