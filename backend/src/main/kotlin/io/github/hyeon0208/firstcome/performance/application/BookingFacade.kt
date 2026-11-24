@@ -106,6 +106,7 @@ class BookingFacade(
         requireRule(seats.phase == BookingPhase.HELD, PerformanceErrorCode.HOLD_NOT_FOUND)
         val gradeBySeatId = showReadService.getSeats(performance.showId).associate { it.seatId to it.grade }
         val heldCountByGrade = seats.seatIds.groupingBy { gradeBySeatId.getValue(it) }.eachCount()
+        requireRule(request.quantities.all { it.quantity >= 0 }, PerformanceErrorCode.PRICE_COUNT_MISMATCH)
         val requestedCountByGrade = request.quantities.filter { it.quantity != 0 }.groupBy({ it.grade }, { it.quantity }).mapValues { it.value.sum() }
         requireRule(heldCountByGrade == requestedCountByGrade, PerformanceErrorCode.PRICE_COUNT_MISMATCH)
     }

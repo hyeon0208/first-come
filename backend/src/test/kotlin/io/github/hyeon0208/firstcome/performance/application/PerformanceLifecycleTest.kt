@@ -1,6 +1,7 @@
 package io.github.hyeon0208.firstcome.performance.application
 
 import io.github.hyeon0208.firstcome.performance.domain.PerformanceErrorCode
+import io.github.hyeon0208.firstcome.performance.infrastructure.JpaPerformanceRepository
 import io.github.hyeon0208.firstcome.support.error.BusinessException
 import io.github.hyeon0208.firstcome.support.test.BaseServiceTest
 import io.kotest.assertions.throwables.shouldThrow
@@ -18,6 +19,12 @@ class PerformanceLifecycleTest : BaseServiceTest() {
 
     @Autowired
     private lateinit var bookingFacade: BookingFacade
+
+    @Autowired
+    private lateinit var performanceRepository: JpaPerformanceRepository
+
+    @Autowired
+    private lateinit var bookingProperties: BookingProperties
 
     @Autowired
     private lateinit var jdbcTemplate: JdbcTemplate
@@ -161,6 +168,29 @@ class PerformanceLifecycleTest : BaseServiceTest() {
                 then("중단으로 끝나고 사용자는 새 연습을 시작할 수 있다") {
                     fixture.recordResults(userId) shouldBe listOf("ABANDONED")
                     fixture.createPerformance(userId)
+                }
+            }
+        }
+        given("회차 하나는 11분 전에 끝났고, 다른 하나는 9분 전에 끝났을 때") {
+            val oldUserId = fixture.createUser()
+            val oldPerformanceId = fixture.createPerformance(oldUserId)
+            performanceWriteService.abandon(oldUserId)
+            testClock.advance(Duration.ofMinutes(2))
+            val recentUserId = fixture.createUser()
+            val recentPerformanceId = fixture.createPerformance(recentUserId)
+            performanceWriteService.abandon(recentUserId)
+            testClock.advance(Duration.ofMinutes(9))
+
+            `when`("정리 작업이 돌면") {
+                PerformanceSweeper(performanceRepository, performanceWriteService, bookingProperties, testClock).sweep()
+
+                then("끝난 지 10분이 지난 회차의 좌석 데이터만 지운다") {
+                    fixture.count("performance_seats", oldPerformanceId) shouldBe 0L
+                    fixture.count("performance_seats", recentPerformanceId) shouldBe 1_008L
+                }
+                then("연습 기록은 둘 다 남는다") {
+                    fixture.recordResults(oldUserId) shouldBe listOf("ABANDONED")
+                    fixture.recordResults(recentUserId) shouldBe listOf("ABANDONED")
                 }
             }
         }

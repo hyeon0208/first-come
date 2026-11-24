@@ -20,7 +20,4 @@ class PerformanceReadService(
 
     fun findPerformance(performanceId: Long): PerformanceResponse? =
         performanceRepository.findByIdOrNull(performanceId)?.let { PerformanceResponse.of(it, LocalDateTime.now(clock)) }
-
-    fun isStarted(performanceId: Long): Boolean =
-        performanceRepository.findByIdOrNull(performanceId)?.isStartedAt(LocalDateTime.now(clock)) ?: true
 }

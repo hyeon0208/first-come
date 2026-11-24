@@ -56,9 +56,9 @@ class ReservationWriteService(
         requireRule(heldSeats.phase != BookingPhase.PAYING, ReservationErrorCode.PAYMENT_IN_PROGRESS)
         requireRule(heldSeats.phase == BookingPhase.HELD, ReservationErrorCode.HOLD_NOT_FOUND)
         requireRule(!heldSeats.expired, ReservationErrorCode.HOLD_EXPIRED)
-        requireRule(!performanceReadService.isStarted(performanceId), ReservationErrorCode.PERFORMANCE_ALREADY_STARTED)
-
-        val performance = checkNotNull(performanceReadService.findPerformance(performanceId)) { "회차가 없습니다. performanceId=$performanceId" }
+        val performance = performanceReadService.findPerformance(performanceId)?.takeIf { it.active }
+            ?: throw BusinessException(ReservationErrorCode.SESSION_EXPIRED)
+        requireRule(performance.serverNow.isBefore(performance.startAt), ReservationErrorCode.PERFORMANCE_ALREADY_STARTED)
         val priceBySeatId = showReadService.getSeats(performance.showId).filter { it.seatId in heldSeats.seatIds }.associate { it.seatId to it.price }
         // 좌석 수만큼 바꾸지 못했다면 그사이 다른 요청이 먼저 잠근 것이다.
         requireRule(

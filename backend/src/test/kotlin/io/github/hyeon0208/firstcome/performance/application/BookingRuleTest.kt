@@ -1,7 +1,10 @@
 package io.github.hyeon0208.firstcome.performance.application
 
 import io.github.hyeon0208.firstcome.performance.BookingPhase
+import io.github.hyeon0208.firstcome.performance.application.dto.PriceQuantityRequest
+import io.github.hyeon0208.firstcome.performance.application.dto.ValidatePricesRequest
 import io.github.hyeon0208.firstcome.performance.domain.PerformanceErrorCode
+import io.github.hyeon0208.firstcome.show.SeatGrade
 import io.github.hyeon0208.firstcome.support.error.BusinessException
 import io.github.hyeon0208.firstcome.support.test.BaseServiceTest
 import io.github.hyeon0208.firstcome.support.test.SeatState
@@ -46,6 +49,16 @@ class BookingRuleTest : BaseServiceTest() {
                     state.phase shouldBe BookingPhase.SELECTING
                 }
             }
+
+            `when`("3분 뒤 예매 화면에 다시 들어와도") {
+                val enteredAt = now()
+                testClock.advance(Duration.ofMinutes(3))
+                val state = bookingFacade.enter(userId, performanceId)
+
+                then("좌석 선택 시간은 처음 들어온 순간부터 10분 그대로다") {
+                    state.seatSelectionExpiresAt shouldBe enteredAt.plusMinutes(10)
+                }
+            }
         }
 
         given("사용자가 예매 화면에 들어와 첫 좌석을 눌렀을 때") {
@@ -85,9 +98,6 @@ class BookingRuleTest : BaseServiceTest() {
                     val held = bookingFacade.hold(userId, performanceId)
                     held.unselectableSeatIds shouldBe listOf(3L)
                     held.state.phase shouldBe BookingPhase.SELECTING
-                }
-                then("다른 참가자가 그 좌석을 가져갈 수 있다") {
-                    fixture.holdSeatsAs(performanceId, participantNo = 1, listOf(3)).heldSeatIds shouldBe listOf(3L)
                 }
                 then("다시 고르는 첫 좌석부터 7분을 새로 센다") {
                     bookingFacade.preselect(userId, performanceId, 5).preselectExpiresAt shouldBe now().plusMinutes(7)
@@ -258,6 +268,81 @@ class BookingRuleTest : BaseServiceTest() {
                 then("내 좌석이 있으므로 매진으로 끝내지 않고 SEAT_TAKEN으로 답한다") {
                     errorCodeOf { bookingFacade.preselect(userId, performanceId, 2) } shouldBe PerformanceErrorCode.SEAT_TAKEN
                     fixture.performanceResult(performanceId) shouldBe null
+                }
+            }
+        }
+        given("사용자가 좌석 1을 가선점하고 7분이 지나도록 아무것도 하지 않았을 때") {
+            val userId = fixture.createUser()
+            val performanceId = fixture.enterPerformance(userId)
+            bookingFacade.preselect(userId, performanceId, 1)
+            testClock.advance(Duration.ofMinutes(7).plusSeconds(1))
+
+            `when`("다른 참가자가 그 좌석을 누르면") {
+                val held = fixture.holdSeatsAs(performanceId, participantNo = 1, listOf(1))
+
+                then("가선점이 끝난 좌석이라 가져갈 수 있다") {
+                    held.heldSeatIds shouldBe listOf(1L)
+                    fixture.seatState(performanceId, 1).participantNo shouldBe 1
+                }
+                then("사용자의 좌석 상태에는 그 좌석이 선택 불가로 나온다") {
+                    bookingFacade.getSeatStatuses(userId, performanceId).unavailableSeatIds shouldBe listOf(1L)
+                }
+            }
+        }
+
+        given("다른 참가자가 좌석 1을 선점하고 예매 가능 시간 7분이 지나도록 결제하지 않았을 때") {
+            val userId = fixture.createUser()
+            val performanceId = fixture.enterPerformance(userId)
+            fixture.holdSeatsAs(performanceId, participantNo = 1, listOf(1))
+            testClock.advance(Duration.ofMinutes(7).plusSeconds(1))
+
+            `when`("사용자가 그 좌석을 누르면") {
+                val state = bookingFacade.preselect(userId, performanceId, 1)
+
+                then("선점이 끝난 좌석이라 가져갈 수 있다") {
+                    state.mySeatIds shouldBe listOf(1L)
+                    fixture.seatState(performanceId, 1).status shouldBe "PRESELECTED"
+                }
+            }
+        }
+
+        given("사용자가 좌석 1을 가선점만 한 채 1분이 지났을 때") {
+            val userId = fixture.createUser()
+            val performanceId = fixture.enterPerformance(userId)
+            val firstPressedAt = now()
+            bookingFacade.preselect(userId, performanceId, 1)
+            testClock.advance(Duration.ofMinutes(1))
+
+            `when`("선점한 좌석이 없는데 좌석 다시 고르기를 요청하면") {
+                then("HOLD_NOT_FOUND로 거절되고 가선점 7분은 새로 시작되지 않는다") {
+                    errorCodeOf { bookingFacade.releaseHold(userId, performanceId) } shouldBe PerformanceErrorCode.HOLD_NOT_FOUND
+                    bookingFacade.preselect(userId, performanceId, 2).preselectExpiresAt shouldBe firstPressedAt.plusMinutes(7)
+                }
+            }
+        }
+
+        given("사용자가 R석 좌석 1, 2를 선점했을 때") {
+            val userId = fixture.createUser()
+            val performanceId = fixture.enterPerformance(userId)
+            fixture.holdSeats(userId, performanceId, listOf(1, 2))
+            fun validate(vararg quantities: Int) =
+                bookingFacade.validatePrices(userId, performanceId, ValidatePricesRequest(quantities.map { PriceQuantityRequest(SeatGrade.R, it) }))
+
+            `when`("가격 수량을 좌석 수와 다르게(1매) 넣으면") {
+                then("PRICE_COUNT_MISMATCH로 거절된다") {
+                    errorCodeOf { validate(1) } shouldBe PerformanceErrorCode.PRICE_COUNT_MISMATCH
+                }
+            }
+
+            `when`("음수를 섞어 합만 맞추면(3매와 -1매)") {
+                then("PRICE_COUNT_MISMATCH로 거절된다") {
+                    errorCodeOf { validate(3, -1) } shouldBe PerformanceErrorCode.PRICE_COUNT_MISMATCH
+                }
+            }
+
+            `when`("좌석 수와 같게(2매) 넣으면") {
+                then("통과한다") {
+                    validate(2)
                 }
             }
         }

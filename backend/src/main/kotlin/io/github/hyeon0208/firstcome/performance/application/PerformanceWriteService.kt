@@ -47,7 +47,7 @@ class PerformanceWriteService(
     fun createPerformance(userId: Long, request: CreatePerformanceRequest): PerformanceResponse {
         val seats = showReadService.getSeats(request.showId)
         val now = LocalDateTime.now(clock)
-        endIfDue(performanceRepository.findByActiveUserId(userId), now)
+        endIfDue(performanceRepository.findByActiveUserIdForUpdate(userId), now)
         requireRule(!performanceRepository.existsByActiveUserId(userId), PerformanceErrorCode.ALREADY_IN_PROGRESS)
         requireRule(
             performanceRepository.countByStatus(PerformanceStatus.ACTIVE) < bookingProperties.maxActivePerformances,
@@ -84,7 +84,7 @@ class PerformanceWriteService(
     // 사용자의 진행 중 회차. 제한 시간이 지났으면 끝내고 없는 것으로 답한다.
     fun findCurrentPerformance(userId: Long): PerformanceResponse? {
         val now = LocalDateTime.now(clock)
-        val performance = performanceRepository.findByActiveUserId(userId)?.let { performanceRepository.findByIdForUpdate(it.id) }
+        val performance = performanceRepository.findByActiveUserIdForUpdate(userId)
         endIfDue(performance, now)
         return performance?.takeIf { it.isActive }?.let { PerformanceResponse.of(it, now) }
     }
@@ -112,7 +112,7 @@ class PerformanceWriteService(
 
     // 진행 중인 회차를 중단으로 끝낸다. 진행 중인 회차가 없으면 아무 일도 하지 않는다.
     fun abandon(userId: Long) {
-        val performance = performanceRepository.findByActiveUserId(userId)?.let { performanceRepository.findByIdForUpdate(it.id) } ?: return
+        val performance = performanceRepository.findByActiveUserIdForUpdate(userId) ?: return
         requireRule(!isPaying(performance.id), PerformanceErrorCode.SEATS_PAYING)
         end(performance, PerformanceResult.ABANDONED, LocalDateTime.now(clock))
     }
@@ -139,8 +139,9 @@ class PerformanceWriteService(
     fun purge(performanceId: Long) {
         val performance = performanceRepository.findByIdForUpdate(performanceId) ?: return
         check(!performance.isActive) { "진행 중인 회차는 지울 수 없습니다. performanceId=$performanceId" }
-        performanceSeatRepository.deleteAllByPerformanceId(performanceId)
+        // 좌석을 바꾸는 요청과 같은 순서(참가자 → 좌석)로 잠가, 늦게 도착한 요청과 교착하지 않게 한다.
         participantRepository.deleteAllByPerformanceId(performanceId)
+        performanceSeatRepository.deleteAllByPerformanceId(performanceId)
         eventPublisher.publishEvent(PerformancePurged(performanceId))
         performanceRepository.deleteById(performanceId)
         logger.info("회차 데이터 삭제 performanceId={}", performanceId)

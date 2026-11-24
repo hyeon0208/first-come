@@ -13,6 +13,7 @@ data class PerformanceResponse(
     val startAt: LocalDateTime,
     val enteredAt: LocalDateTime?,
     val seatSelectionExpiresAt: LocalDateTime?,
+    val active: Boolean,
     val serverNow: LocalDateTime,
 ) {
     companion object {
@@ -25,6 +26,7 @@ data class PerformanceResponse(
                 startAt = performance.startAt,
                 enteredAt = performance.enteredAt,
                 seatSelectionExpiresAt = performance.seatSelectionExpiresAt,
+                active = performance.isActive,
                 serverNow = now,
             )
     }

@@ -1,5 +1,6 @@
 package io.github.hyeon0208.firstcome.performance.application
 
+import io.github.hyeon0208.firstcome.performance.ParticipantNo
 import io.github.hyeon0208.firstcome.performance.application.dto.HoldSeatsResponse
 import io.github.hyeon0208.firstcome.performance.application.dto.PreselectResult
 import io.github.hyeon0208.firstcome.performance.domain.ParticipantEntity
@@ -13,7 +14,6 @@ import io.github.hyeon0208.firstcome.support.error.requireRule
 import java.time.Clock
 import java.time.LocalDateTime
 import org.slf4j.LoggerFactory
-import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -103,7 +103,10 @@ class PerformanceSeatWriteService(
     // 좌석 선택 단계로 돌아간다. 선점한 좌석을 모두 풀고, 다시 고르는 첫 좌석부터 가선점 시간을 새로 센다.
     fun releaseHold(performanceId: Long, participantNo: Int) {
         val participant = getParticipantForUpdate(performanceId, participantNo)
-        requireRule(!isPaying(performanceId, participantNo), PerformanceErrorCode.SEATS_PAYING)
+        val statuses = performanceSeatRepository.findAllByPerformanceIdAndParticipantNo(performanceId, participantNo).map { it.status }
+        requireRule(PerformanceSeatStatus.PAYING !in statuses, PerformanceErrorCode.SEATS_PAYING)
+        // 선점한 좌석이 없으면 시계를 건드리지 않는다. 가선점 중에 불러 7분을 새로 받는 일을 막는다.
+        requireRule(PerformanceSeatStatus.HELD in statuses, PerformanceErrorCode.HOLD_NOT_FOUND)
         participant.clearHold()
         performanceSeatRepository.releaseHeld(performanceId, participantNo, LocalDateTime.now(clock))
     }
@@ -115,12 +118,18 @@ class PerformanceSeatWriteService(
     fun startPaying(performanceId: Long, participantNo: Int, seatCount: Int): Boolean =
         performanceSeatRepository.startPaying(performanceId, participantNo, LocalDateTime.now(clock)) == seatCount
 
-    // 결제가 승인된 뒤 확정한다. 결제 전에 확인한 조건(예매 가능 시간, 공연 시작 시각)을 여기서 다시 확인한다.
+    // 결제가 승인된 뒤 확정한다. 결제 전에 확인한 조건(회차가 진행 중인지, 예매 가능 시간, 공연 시작 시각)을 여기서 다시 확인한다.
     // 좌석 쪽 조건은 UPDATE의 WHERE(결제 중, 만료 전)가 확인한다.
+    // 회차 행을 잠가 읽어, 결제하는 사이 회차가 끝났다면(다른 화면에서 "처음부터 다시" 등) 확정하지 않는다.
+    // 사용자는 확정과 함께 회차를 끝내므로 쓰기 잠금으로, 다른 참가자는 서로 막지 않게 공유 잠금으로 읽는다.
     fun reserve(performanceId: Long, participantNo: Int, seatCount: Int): Boolean {
         val now = LocalDateTime.now(clock)
-        val performance = performanceRepository.findByIdOrNull(performanceId) ?: return false
-        if (performance.isStartedAt(now)) {
+        val performance = if (participantNo == ParticipantNo.USER) {
+            performanceRepository.findByIdForUpdate(performanceId)
+        } else {
+            performanceRepository.findByIdForShare(performanceId)
+        }
+        if (performance == null || !performance.isActive || performance.isStartedAt(now)) {
             return false
         }
         return performanceSeatRepository.reserve(performanceId, participantNo, now) == seatCount
@@ -131,8 +140,9 @@ class PerformanceSeatWriteService(
         performanceSeatRepository.revertPaying(performanceId, participantNo, LocalDateTime.now(clock))
     }
 
-    // 결제는 승인됐지만 확정하지 못했을 때 좌석을 푼다.
+    // 결제는 승인됐지만 확정하지 못했을 때 좌석을 푼다. 가진 좌석이 없어지므로 참가자의 시계도 지운다.
     fun releasePaying(performanceId: Long, participantNo: Int) {
+        participantRepository.findForUpdate(performanceId, participantNo)?.clearHold()
         performanceSeatRepository.releasePaying(performanceId, participantNo, LocalDateTime.now(clock))
     }
 

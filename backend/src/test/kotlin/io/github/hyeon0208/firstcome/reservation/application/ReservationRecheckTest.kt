@@ -1,5 +1,8 @@
 package io.github.hyeon0208.firstcome.reservation.application
 
+import io.github.hyeon0208.firstcome.performance.ParticipantNo
+import io.github.hyeon0208.firstcome.performance.PerformanceResult
+import io.github.hyeon0208.firstcome.performance.application.PerformanceWriteService
 import io.github.hyeon0208.firstcome.reservation.domain.ReservationErrorCode
 import io.github.hyeon0208.firstcome.reservation.domain.ReservationStatus
 import io.github.hyeon0208.firstcome.reservation.infrastructure.JpaReservationRepository
@@ -21,6 +24,12 @@ class ReservationRecheckTest : BaseServiceTest() {
 
     @Autowired
     private lateinit var jdbcTemplate: JdbcTemplate
+
+    @Autowired
+    private lateinit var performanceWriteService: PerformanceWriteService
+
+    @Autowired
+    private lateinit var reservationFacade: ReservationFacade
 
     init {
         given("사용자가 좌석 1, 2를 선점했고, 결제하는 동안 예매 가능 시간 7분이 끝날 때") {
@@ -91,6 +100,41 @@ class ReservationRecheckTest : BaseServiceTest() {
 
                 then("결제를 부르지 않고 PERFORMANCE_ALREADY_STARTED로 거절한다") {
                     exception.errorCode shouldBe ReservationErrorCode.PERFORMANCE_ALREADY_STARTED
+                    fakePaymentClient.approvedRequests.size shouldBe 0
+                }
+            }
+        }
+        given("사용자가 좌석 1, 2를 선점했고, 결제하는 동안 회차가 끝날 때(다른 화면에서 다시 시작하는 요청이 먼저 처리된 경우)") {
+            val userId = fixture.createUser()
+            val performanceId = fixture.enterPerformance(userId)
+            fixture.holdSeats(userId, performanceId, listOf(1, 2))
+            fakePaymentClient.beforeApprove = { performanceWriteService.end(performanceId, PerformanceResult.ABANDONED) }
+
+            `when`("결제를 요청하면") {
+                shouldThrow<BusinessException> { fixture.reserve(userId, performanceId, "key-1") }
+
+                then("끝난 회차에는 예매를 확정하지 않고 승인된 결제를 취소한다") {
+                    reservationRepository.findAll().single().status shouldBe ReservationStatus.FAILED
+                    fakePaymentClient.cancelledReservationIds shouldBe listOf(reservationRepository.findAll().single().id)
+                }
+                then("좌석은 예매 완료가 되지 않고, 회차 결과는 중단 그대로다") {
+                    fixture.seatStates(performanceId, listOf(1, 2)).map { it.status } shouldBe listOf("AVAILABLE", "AVAILABLE")
+                    fixture.recordResults(userId) shouldBe listOf("ABANDONED")
+                }
+            }
+        }
+
+        given("사용자가 좌석 1, 2를 선점한 뒤 회차가 끝났을 때") {
+            val userId = fixture.createUser()
+            val performanceId = fixture.enterPerformance(userId)
+            fixture.holdSeats(userId, performanceId, listOf(1, 2))
+            performanceWriteService.end(performanceId, PerformanceResult.ABANDONED)
+
+            `when`("확인을 건너뛰고 결제 단계에 닿은 요청이 있으면") {
+                val exception = shouldThrow<BusinessException> { reservationFacade.reserve(performanceId, ParticipantNo.USER, "key-1") }
+
+                then("결제를 부르지 않고 SESSION_EXPIRED로 거절한다") {
+                    exception.errorCode shouldBe ReservationErrorCode.SESSION_EXPIRED
                     fakePaymentClient.approvedRequests.size shouldBe 0
                 }
             }

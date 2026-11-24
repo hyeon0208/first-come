@@ -9,8 +9,6 @@ import org.springframework.data.jpa.repository.Lock
 import org.springframework.data.jpa.repository.Query
 
 interface JpaPerformanceRepository : JpaRepository<PerformanceEntity, Long> {
-    fun findByActiveUserId(activeUserId: Long): PerformanceEntity?
-
     fun existsByActiveUserId(activeUserId: Long): Boolean
 
     fun countByStatus(status: PerformanceStatus): Long
@@ -18,6 +16,16 @@ interface JpaPerformanceRepository : JpaRepository<PerformanceEntity, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select p from PerformanceEntity p where p.id = :id")
     fun findByIdForUpdate(id: Long): PerformanceEntity?
+
+    // 회차가 끝나거나 지워지는 것만 막고, 같은 회차의 다른 참가자들은 동시에 읽을 수 있게 공유 잠금으로 읽는다.
+    @Lock(LockModeType.PESSIMISTIC_READ)
+    @Query("select p from PerformanceEntity p where p.id = :id")
+    fun findByIdForShare(id: Long): PerformanceEntity?
+
+    // 잠그지 않고 먼저 읽으면 그 뒤의 잠금 조회가 옛 상태를 돌려줄 수 있어, 한 번에 잠가 읽는다.
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select p from PerformanceEntity p where p.activeUserId = :userId")
+    fun findByActiveUserIdForUpdate(userId: Long): PerformanceEntity?
 
     @Query("select p.id from PerformanceEntity p where p.status = :status order by p.id")
     fun findIdsByStatus(status: PerformanceStatus): List<Long>
