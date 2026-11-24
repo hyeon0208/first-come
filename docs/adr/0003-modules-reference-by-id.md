@@ -9,7 +9,7 @@ status: accepted
 ## Considered Options
 
 - 모듈 사이에도 FK 유지: 무결성은 DB가 지켜 주지만, 서비스를 나누기 전에 FK부터 걷어내야 한다.
-- 모듈을 열어 두기(Modulith OPEN): 과제 코드를 덜 고쳐도 되지만 검증이 아무것도 막지 못한다.
+- 모듈을 열어 두기(Modulith OPEN): 기존 코드를 덜 고쳐도 되지만 검증이 아무것도 막지 못한다.
 
 ## Consequences
 

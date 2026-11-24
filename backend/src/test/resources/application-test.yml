@@ -1,4 +1,8 @@
 spring:
+  datasource:
+    hikari:
+      # 잠금 대기는 실행 설정(application-local.yml)과 같은 3초로 맞춘다.
+      connection-init-sql: SET SESSION innodb_lock_wait_timeout = 3
   jpa:
     properties:
       hibernate:
