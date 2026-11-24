@@ -42,6 +42,7 @@ services:
       DATABASE_URL: jdbc:mysql://mysql:3306/firstcome
       DATABASE_USERNAME: firstcome
       DATABASE_PASSWORD: firstcome
+      PAYMENT_BASE_URL: http://payment-mock:8081
       TZ: Asia/Seoul
       JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=75
     ports:
@@ -49,6 +50,8 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
+      payment-mock:
+        condition: service_started
     cpus: 2.0
     mem_limit: 1g
 

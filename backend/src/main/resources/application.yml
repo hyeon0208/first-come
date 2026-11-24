@@ -12,6 +12,11 @@ spring:
         default_batch_fetch_size: 100
   flyway:
     enabled: true
+  http:
+    clients:
+      # 결제 서버를 부를 때 기다리는 시간. 응답 대기를 넘기면 결제 결과를 모르는 것으로 보고 취소를 보낸다.
+      connect-timeout: 2s
+      read-timeout: 5s
   datasource:
     hikari:
       # 좌석을 범위로 UPDATE하는 문장이 인덱스 빈 구간을 잠가 교착하지 않도록 READ COMMITTED로 실행한다.

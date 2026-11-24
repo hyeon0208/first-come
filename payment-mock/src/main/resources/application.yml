@@ -1,8 +1,22 @@
 spring:
   application:
     name: payment-mock
+  threads:
+    virtual:
+      # 승인마다 1~3초를 기다리므로, 동시에 많은 결제가 와도 요청 스레드가 모자라지 않게 가상 스레드로 처리한다.
+      enabled: true
 
 server:
   port: 8081
   error:
     include-message: never
+
+payment-mock:
+  # 승인까지 걸리는 시간. 요청마다 이 범위에서 무작위로 정한다.
+  delay-min: 1s
+  delay-max: 3s
+  # 무응답을 주입했을 때 연결을 붙잡고 있는 시간
+  no-response-hold: 30s
+  fault-injection:
+    # 거절·지연·무응답을 주입하는 /test/faults 를 연다. 테스트에서만 켠다.
+    enabled: false
