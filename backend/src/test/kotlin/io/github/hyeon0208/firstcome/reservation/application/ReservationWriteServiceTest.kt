@@ -56,8 +56,8 @@ class ReservationWriteServiceTest : BaseServiceTest() {
                     reservationSeatRepository.findAllByReservationId(pending.reservationId)
                         .associate { it.performanceSeatId to it.price } shouldBe mapOf(19L to 150_000L, 20L to 150_000L)
                 }
-                then("좌석은 임시 배정 그대로다") {
-                    fixture.seatStates(listOf(19, 20)) shouldBe List(2) { SeatState("HELD", userId, holdExpiresAt) }
+                then("좌석은 결제 중으로 잠긴다(만료 시각은 그대로)") {
+                    fixture.seatStates(listOf(19, 20)) shouldBe List(2) { SeatState("PAYING", userId, holdExpiresAt) }
                 }
             }
         }
@@ -176,7 +176,7 @@ class ReservationWriteServiceTest : BaseServiceTest() {
             val userId = fixture.createUser()
             fixture.holdSeats(userId, performanceId = 1, listOf(1, 2))
             val pending = fixture.createPendingReservation(userId, performanceId = 1, listOf(1, 2), "key-1")
-            reservationWriteService.failIfPending(pending.reservationId, null)
+            reservationWriteService.failIfPending(pending, null)
 
             `when`("같은 멱등 키로 요청하면") {
                 val exception = shouldThrow<BusinessException> {
@@ -215,54 +215,49 @@ class ReservationWriteServiceTest : BaseServiceTest() {
             }
         }
 
-        given("사용자가 회차 1의 좌석 1, 2로 결제 대기 예약을 만든 뒤, 아무도 가져가지 않은 채 임시 배정이 만료됐을 때") {
+        given("사용자가 회차 1의 좌석 1, 2로 결제 대기 예약을 만든 뒤, 임시 배정 만료 시각이 지났을 때") {
             loadInitialData()
             val userId = fixture.createUser()
             fixture.holdSeats(userId, performanceId = 1, listOf(1, 2))
             val pending = fixture.createPendingReservation(userId, performanceId = 1, listOf(1, 2), "key-1")
             testClock.advance(Duration.ofMinutes(5).plusSeconds(1))
-
-            `when`("예약을 확정하면") {
-                reservationWriteService.confirmReservation(pending, PaymentApproval(transactionId = "TX-1"))
-
-                then("아직 그 사용자의 임시 배정이므로 예약이 확정된다") {
-                    reservationRepository.findById(pending.reservationId).orElseThrow().status shouldBe ReservationStatus.CONFIRMED
-                }
-                then("좌석은 예약 완료가 된다") {
-                    fixture.seatStates(listOf(1, 2)).map { it.status } shouldBe listOf("RESERVED", "RESERVED")
-                }
-            }
-        }
-
-        given("사용자가 회차 1의 좌석 1, 2로 결제 대기 예약을 만든 뒤, 임시 배정이 만료되어 다른 사용자가 좌석 2를 임시 배정했을 때") {
-            loadInitialData()
-            val userId = fixture.createUser()
-            val otherUserId = fixture.createUser()
-            fixture.holdSeats(userId, performanceId = 1, listOf(1, 2))
-            val userHoldExpiresAt = LocalDateTime.now(testClock).plusMinutes(5)
-            val pending = fixture.createPendingReservation(userId, performanceId = 1, listOf(1, 2), "key-1")
-            testClock.advance(Duration.ofMinutes(5).plusSeconds(1))
-            fixture.holdSeats(otherUserId, performanceId = 1, listOf(2))
-            val otherHoldExpiresAt = LocalDateTime.now(testClock).plusMinutes(5)
 
             `when`("예약을 확정하면") {
                 val exception = shouldThrow<BusinessException> {
                     reservationWriteService.confirmReservation(pending, PaymentApproval(transactionId = "TX-1"))
                 }
 
-                then("HOLD_LOST로 거부된다") {
-                    exception.errorCode shouldBe ReservationErrorCode.HOLD_LOST
+                then("BOOKING_TIME_EXPIRED로 거부된다") {
+                    exception.errorCode shouldBe ReservationErrorCode.BOOKING_TIME_EXPIRED
                 }
-                then("좌석 1도 예약 완료로 바뀌지 않고, 좌석 2는 다른 사용자의 임시 배정 그대로다") {
-                    fixture.seatStates(listOf(1, 2)) shouldBe listOf(
-                        SeatState("HELD", userId, userHoldExpiresAt),
-                        SeatState("HELD", otherUserId, otherHoldExpiresAt),
-                    )
+                then("좌석은 예약 완료로 바뀌지 않는다") {
+                    fixture.seatStates(listOf(1, 2)).map { it.status } shouldBe listOf("PAYING", "PAYING")
                 }
                 then("예약은 결제 대기 그대로이고 승인 번호는 저장되지 않는다") {
                     val reservation = reservationRepository.findById(pending.reservationId).orElseThrow()
                     reservation.status shouldBe ReservationStatus.PENDING
                     reservation.paymentTransactionId shouldBe null
+                }
+            }
+        }
+
+        given("사용자가 회차 1의 좌석 1, 2로 결제 대기 예약을 만들어 좌석이 결제 중이고, 임시 배정 만료 시각이 지났을 때") {
+            loadInitialData()
+            val userId = fixture.createUser()
+            val otherUserId = fixture.createUser()
+            fixture.holdSeats(userId, performanceId = 1, listOf(1, 2))
+            val holdExpiresAt = LocalDateTime.now(testClock).plusMinutes(5)
+            fixture.createPendingReservation(userId, performanceId = 1, listOf(1, 2), "key-1")
+            testClock.advance(Duration.ofMinutes(5).plusSeconds(1))
+
+            `when`("다른 사용자가 좌석 2를 임시 배정하려 하면") {
+                val exception = shouldThrow<BusinessException> { fixture.holdSeats(otherUserId, performanceId = 1, listOf(2)) }
+
+                then("결제 중인 좌석은 만료 시각이 지나도 풀리지 않아 SEAT_NOT_AVAILABLE로 거부된다") {
+                    exception.errorCode shouldBe PerformanceErrorCode.SEAT_NOT_AVAILABLE
+                }
+                then("좌석은 그 사용자의 결제 중 그대로다") {
+                    fixture.seatStates(listOf(1, 2)) shouldBe List(2) { SeatState("PAYING", userId, holdExpiresAt) }
                 }
             }
         }
@@ -275,7 +270,7 @@ class ReservationWriteServiceTest : BaseServiceTest() {
             val pending = fixture.createPendingReservation(userId, performanceId = 1, listOf(1, 2), "key-1")
 
             `when`("결제 승인 번호(TX-1)와 함께 결제 대기일 때만 실패로 바꾸면") {
-                val failed = reservationWriteService.failIfPending(pending.reservationId, "TX-1")
+                val failed = reservationWriteService.failIfPending(pending, "TX-1")
 
                 then("true를 돌려주고 예약은 실패 상태가 된다") {
                     failed shouldBe true
@@ -284,8 +279,8 @@ class ReservationWriteServiceTest : BaseServiceTest() {
                 then("승인 번호가 예약에 남는다") {
                     reservationRepository.findById(pending.reservationId).orElseThrow().paymentTransactionId shouldBe "TX-1"
                 }
-                then("좌석은 그 사용자의 임시 배정 그대로다") {
-                    fixture.seatStates(listOf(1, 2)) shouldBe List(2) { SeatState("HELD", userId, holdExpiresAt) }
+                then("확정하지 못한 좌석은 풀려 예약 가능이 된다") {
+                    fixture.seatStates(listOf(1, 2)) shouldBe List(2) { SeatState("AVAILABLE", null, null) }
                 }
             }
         }
@@ -298,7 +293,7 @@ class ReservationWriteServiceTest : BaseServiceTest() {
             reservationWriteService.confirmReservation(pending, PaymentApproval(transactionId = "TX-1"))
 
             `when`("결제 대기일 때만 실패로 바꾸면") {
-                val failed = reservationWriteService.failIfPending(pending.reservationId, "TX-1")
+                val failed = reservationWriteService.failIfPending(pending, "TX-1")
 
                 then("false를 돌려주고 예약은 확정 그대로다") {
                     failed shouldBe false

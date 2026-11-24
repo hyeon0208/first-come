@@ -28,7 +28,7 @@ class ReservationFacade(
         try {
             reservationWriteService.confirmReservation(pending, approval)
         } catch (exception: Exception) {
-            if (failIfStillPending(pending, approval)) cancelPayment(pending, approval)
+            if (failIfStillPending(pending, approval.transactionId)) cancelPayment(pending)
             throw exception
         }
         return reservationReadService.getReservation(pending.reservationId)
@@ -38,24 +38,30 @@ class ReservationFacade(
         try {
             paymentClient.pay(PaymentRequest(pending.reservationId, pending.amount))
         } catch (_: PaymentDeclinedException) {
-            reservationWriteService.failIfPending(pending.reservationId, null)
+            failIfStillPending(pending, null)
             throw BusinessException(ReservationErrorCode.PAYMENT_DECLINED)
+        } catch (exception: Exception) {
+            // 응답을 받지 못했을 뿐 승인됐을 수 있다. 취소가 확인된 뒤에만 좌석을 되돌려, 같은 임시 배정에 결제가 두 번 나가지 않게 한다.
+            logger.error("결제 결과를 받지 못함 reservationId={}", pending.reservationId, exception)
+            if (cancelPayment(pending)) failIfStillPending(pending, null)
+            throw BusinessException(ReservationErrorCode.PAYMENT_UNAVAILABLE)
         }
 
-    private fun failIfStillPending(pending: PendingReservation, approval: PaymentApproval): Boolean =
+    private fun failIfStillPending(pending: PendingReservation, paymentTransactionId: String?): Boolean =
         try {
-            reservationWriteService.failIfPending(pending.reservationId, approval.transactionId)
+            reservationWriteService.failIfPending(pending, paymentTransactionId)
         } catch (exception: Exception) {
-            logger.error("예약 확정 결과 확인 필요 reservationId={} paymentTransactionId={}", pending.reservationId, approval.transactionId, exception)
+            logger.error("예약 결과 확인 필요 reservationId={} paymentTransactionId={}", pending.reservationId, paymentTransactionId, exception)
             false
         }
 
-    private fun cancelPayment(pending: PendingReservation, approval: PaymentApproval) {
+    private fun cancelPayment(pending: PendingReservation): Boolean =
         try {
-            paymentClient.cancel(approval.transactionId)
-            logger.warn("예약을 확정하지 못해 결제를 취소함 reservationId={} paymentTransactionId={}", pending.reservationId, approval.transactionId)
+            paymentClient.cancel(pending.reservationId)
+            logger.warn("예약을 확정하지 못해 결제를 취소함 reservationId={}", pending.reservationId)
+            true
         } catch (exception: Exception) {
-            logger.error("결제 취소 실패, 환불 필요 reservationId={} paymentTransactionId={}", pending.reservationId, approval.transactionId, exception)
+            logger.error("결제 취소 실패, 환불 필요 reservationId={}", pending.reservationId, exception)
+            false
         }
-    }
 }

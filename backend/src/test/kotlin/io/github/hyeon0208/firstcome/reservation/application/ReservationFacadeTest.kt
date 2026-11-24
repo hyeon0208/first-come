@@ -112,59 +112,76 @@ class ReservationFacadeTest : BaseServiceTest() {
                     reservation.status shouldBe ReservationStatus.FAILED
                     reservation.paymentTransactionId shouldBe null
                 }
-            }
-        }
-
-        given("사용자가 회차 1의 좌석 1, 2를 임시 배정했고, 결제하는 동안 임시 배정이 만료되어 다른 사용자가 좌석 2를 임시 배정할 때") {
-            loadInitialData()
-            val userId = fixture.createUser()
-            val otherUserId = fixture.createUser()
-            fixture.holdSeats(userId, performanceId = 1, listOf(1, 2))
-            fakePaymentClient.beforeApprove = {
-                testClock.advance(Duration.ofMinutes(5).plusSeconds(1))
-                fixture.holdSeats(otherUserId, performanceId = 1, listOf(2))
-            }
-
-            `when`("예약 확정을 요청하면") {
-                val exception = shouldThrow<BusinessException> { fixture.createReservation(userId, performanceId = 1, listOf(1, 2), "key-1") }
-
-                then("HOLD_LOST를 그대로 던진다") {
-                    exception.errorCode shouldBe ReservationErrorCode.HOLD_LOST
-                }
-                then("승인한 결제를 취소한다") {
-                    val reservationId = reservationRepository.findAll().single().id
-                    fakePaymentClient.cancelledTransactionIds shouldBe listOf("FAKE-$reservationId")
-                }
-                then("예약을 실패로 바꾸고 취소한 결제의 승인 번호를 남긴다") {
-                    val reservation = reservationRepository.findAll().single()
-                    reservation.status shouldBe ReservationStatus.FAILED
-                    reservation.paymentTransactionId shouldBe "FAKE-${reservation.id}"
+                then("좌석은 임시 배정으로 돌아와 새 멱등 키로 다시 결제할 수 있다") {
+                    fixture.seatStates(listOf(1, 2)).map { it.status } shouldBe listOf("HELD", "HELD")
+                    fakePaymentClient.declinesPayment = false
+                    fixture.createReservation(userId, performanceId = 1, listOf(1, 2), "key-2").status shouldBe ReservationStatus.CONFIRMED
                 }
             }
         }
 
-        given("사용자가 회차 1의 좌석 1, 2를 임시 배정했고, 결제하는 동안 좌석 2를 잃은 데다 결제 취소까지 실패할 때") {
+        given("사용자가 회차 1의 좌석 1, 2를 임시 배정했고, 결제하는 동안 임시 배정이 만료된 데다 결제 취소까지 실패할 때") {
             loadInitialData()
             val userId = fixture.createUser()
-            val otherUserId = fixture.createUser()
             fixture.holdSeats(userId, performanceId = 1, listOf(1, 2))
-            fakePaymentClient.beforeApprove = {
-                testClock.advance(Duration.ofMinutes(5).plusSeconds(1))
-                fixture.holdSeats(otherUserId, performanceId = 1, listOf(2))
-            }
+            fakePaymentClient.beforeApprove = { testClock.advance(Duration.ofMinutes(5).plusSeconds(1)) }
             fakePaymentClient.failsToCancel = true
 
             `when`("예약 확정을 요청하면") {
                 val exception = shouldThrow<BusinessException> { fixture.createReservation(userId, performanceId = 1, listOf(1, 2), "key-1") }
 
-                then("결제 취소 오류가 아니라 원래 오류(HOLD_LOST)를 던진다") {
-                    exception.errorCode shouldBe ReservationErrorCode.HOLD_LOST
+                then("결제 취소 오류가 아니라 원래 오류(BOOKING_TIME_EXPIRED)를 던진다") {
+                    exception.errorCode shouldBe ReservationErrorCode.BOOKING_TIME_EXPIRED
                 }
                 then("예약은 대사할 승인 번호와 함께 실패로 바뀌고, 결제는 취소되지 않은 채 남는다") {
                     val reservation = reservationRepository.findAll().single()
                     reservation.status shouldBe ReservationStatus.FAILED
                     reservation.paymentTransactionId shouldBe "FAKE-${reservation.id}"
-                    fakePaymentClient.cancelledTransactionIds.shouldBeEmpty()
+                    fakePaymentClient.cancelledReservationIds.shouldBeEmpty()
+                }
+            }
+        }
+
+        given("사용자가 회차 1의 좌석 1, 2를 임시 배정했고, 결제는 승인됐는데 응답이 돌아오지 않을 때") {
+            loadInitialData()
+            val userId = fixture.createUser()
+            fixture.holdSeats(userId, performanceId = 1, listOf(1, 2))
+            fakePaymentClient.losesResponse = true
+
+            `when`("예약 확정을 요청하면") {
+                val exception = shouldThrow<BusinessException> { fixture.createReservation(userId, performanceId = 1, listOf(1, 2), "key-1") }
+
+                then("PAYMENT_UNAVAILABLE을 던진다") {
+                    exception.errorCode shouldBe ReservationErrorCode.PAYMENT_UNAVAILABLE
+                }
+                then("승인됐을 수 있는 결제를 예약 번호로 취소한다") {
+                    fakePaymentClient.cancelledReservationIds shouldBe listOf(reservationRepository.findAll().single().id)
+                }
+                then("예약은 실패로 바뀌고 좌석은 임시 배정으로 돌아온다") {
+                    reservationRepository.findAll().single().status shouldBe ReservationStatus.FAILED
+                    fixture.seatStates(listOf(1, 2)).map { it.status } shouldBe listOf("HELD", "HELD")
+                }
+            }
+        }
+
+        given("사용자가 회차 1의 좌석 1, 2를 임시 배정했고, 결제 응답도 돌아오지 않고 결제 취소도 실패할 때") {
+            loadInitialData()
+            val userId = fixture.createUser()
+            fixture.holdSeats(userId, performanceId = 1, listOf(1, 2))
+            fakePaymentClient.losesResponse = true
+            fakePaymentClient.failsToCancel = true
+            shouldThrow<BusinessException> { fixture.createReservation(userId, performanceId = 1, listOf(1, 2), "key-1") }
+
+            `when`("새 멱등 키로 다시 예약 확정을 요청하면") {
+                val exception = shouldThrow<BusinessException> { fixture.createReservation(userId, performanceId = 1, listOf(1, 2), "key-2") }
+
+                then("취소되지 않은 결제가 있을 수 있으므로 결제를 다시 부르지 않고 PAYMENT_IN_PROGRESS로 거절한다") {
+                    exception.errorCode shouldBe ReservationErrorCode.PAYMENT_IN_PROGRESS
+                    fakePaymentClient.approvedRequests.size shouldBe 1
+                }
+                then("좌석은 결제 중으로 묶여 있고 예약은 결제 대기 그대로다") {
+                    fixture.seatStates(listOf(1, 2)).map { it.status } shouldBe listOf("PAYING", "PAYING")
+                    reservationRepository.findAll().single().status shouldBe ReservationStatus.PENDING
                 }
             }
         }

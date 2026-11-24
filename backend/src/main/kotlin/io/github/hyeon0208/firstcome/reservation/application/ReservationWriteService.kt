@@ -82,6 +82,9 @@ class ReservationWriteService(
         val heldSeats = findHeldSeatsMatching(user.id, performance.id, selection, now)
         val priceByPerformanceSeatId = priceByPerformanceSeatId(heldSeats, performance.showId)
         val amount = priceByPerformanceSeatId.values.sum()
+        if (!performanceSeatWriteService.startPaying(priceByPerformanceSeatId.keys.toList(), user.id, now)) {
+            throw BusinessException(ReservationErrorCode.PAYMENT_IN_PROGRESS)
+        }
 
         val reservation = reservationRepository.save(
             ReservationEntity(
@@ -108,12 +111,17 @@ class ReservationWriteService(
         return PendingReservation(
             reservationId = reservation.id,
             userId = user.id,
+            performanceId = performance.id,
             performanceSeatIds = priceByPerformanceSeatId.keys.toList(),
             amount = amount,
         )
     }
 
     private fun findHeldSeatsMatching(userId: Long, performanceId: Long, selection: SeatSelection, now: LocalDateTime): List<PerformanceSeatEntity> {
+        if (performanceSeatWriteService.isPaying(performanceId, userId)) {
+            logger.info("예약 확정 거부(같은 임시 배정에 결제 진행 중) userId={} performanceId={}", userId, performanceId)
+            throw BusinessException(ReservationErrorCode.PAYMENT_IN_PROGRESS)
+        }
         val heldSeats = performanceSeatRepository.findHeldSeats(performanceId, userId)
         val heldSeatIds = heldSeats.map { it.id }.toSet()
         val holdError = when {
@@ -140,27 +148,38 @@ class ReservationWriteService(
     }
 
     fun confirmReservation(pending: PendingReservation, approval: PaymentApproval) {
-        if (!performanceSeatWriteService.reserveSeats(pending.performanceSeatIds, pending.userId)) {
+        val performance = checkNotNull(performanceRepository.findByIdOrNull(pending.performanceId)) { "회차가 없습니다. performanceId=${pending.performanceId}" }
+        val now = LocalDateTime.now(clock)
+        // 결제를 부르기 전에 확인한 조건을 결제 뒤에 다시 확인한다. 좌석 쪽은 UPDATE 조건(결제 중, 만료 전)이 확인한다.
+        if (performance.isStartedAt(now) || !performanceSeatWriteService.reserveSeats(pending.performanceSeatIds, pending.userId)) {
             logger.info(
-                "예약 확정 실패(결제 중 임시 배정이 풀림) reservationId={} performanceSeatIds={}",
+                "예약 확정 실패(결제 중 임시 배정이 만료됐거나 공연이 시작됨) reservationId={} performanceSeatIds={}",
                 pending.reservationId,
                 pending.performanceSeatIds,
             )
-            throw BusinessException(ReservationErrorCode.HOLD_LOST)
+            throw BusinessException(ReservationErrorCode.BOOKING_TIME_EXPIRED)
         }
 
+        // 좌석 UPDATE가 영속성 컨텍스트를 비우므로 예약은 그 뒤에 읽는다.
         reservationSeatRepository.findAllByReservationId(pending.reservationId).forEach { it.activate() }
         val reservation = checkNotNull(reservationRepository.findByIdOrNull(pending.reservationId)) { "예약이 없습니다. reservationId=${pending.reservationId}" }
-        reservation.confirm(approval.transactionId, LocalDateTime.now(clock))
+        reservation.confirm(approval.transactionId, now)
         logger.info("예약 확정 reservationId={} paymentTransactionId={}", pending.reservationId, approval.transactionId)
     }
 
-    fun failIfPending(reservationId: Long, paymentTransactionId: String?): Boolean {
+    // 결제가 승인되지 않았으면(승인 번호 없음) 좌석을 임시 배정으로 되돌리고, 승인됐는데 확정하지 못했으면 좌석을 푼다.
+    fun failIfPending(pending: PendingReservation, paymentTransactionId: String?): Boolean {
+        val reservationId = pending.reservationId
         val reservation = checkNotNull(reservationRepository.findByIdForUpdate(reservationId)) { "예약이 없습니다. reservationId=$reservationId" }
         if (reservation.status != ReservationStatus.PENDING) {
             return false
         }
         reservation.fail(paymentTransactionId)
+        if (paymentTransactionId == null) {
+            performanceSeatWriteService.revertPaying(pending.performanceSeatIds, pending.userId)
+        } else {
+            performanceSeatWriteService.releasePaying(pending.performanceSeatIds, pending.userId)
+        }
         logger.info("예약 실패 처리 reservationId={} paymentTransactionId={}", reservationId, paymentTransactionId)
         return true
     }

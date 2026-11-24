@@ -46,7 +46,7 @@ class ReservationCompensationConcurrencyTest : BaseServiceTest() {
                 val updated = CountDownLatch(1)
                 val confirming = confirmWithDelayedCommit(pending.reservationId, updated)
                 updated.await(5, TimeUnit.SECONDS) shouldBe true
-                val failed = reservationWriteService.failIfPending(pending.reservationId, "TX-1")
+                val failed = reservationWriteService.failIfPending(pending, "TX-1")
                 confirming.join()
 
                 then("확정 커밋을 기다렸다가 확정을 보고 false를 돌려준다") {

@@ -21,5 +21,11 @@ class MockPaymentClientTest : BehaviorSpec({
                 other.transactionId shouldNotBe first.transactionId
             }
         }
+
+        `when`("승인이 없는 예약 3의 결제를 취소하면") {
+            then("오류 없이 끝난다") {
+                paymentClient.cancel(reservationId = 3)
+            }
+        }
     }
 })

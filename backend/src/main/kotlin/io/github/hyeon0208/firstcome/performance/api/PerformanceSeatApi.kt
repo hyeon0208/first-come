@@ -14,7 +14,7 @@ import io.swagger.v3.oas.annotations.tags.Tag
 interface PerformanceSeatApi {
     @Operation(
         summary = "회차 좌석 조회",
-        description = "회차의 전체 좌석을 행·열 순서로 돌려준다. 좌석마다 등급, 가격, 상태(AVAILABLE 예약 가능,HELD 임시 배정,RESERVED 예약 완료)를 담는다. 임시 배정 만료 시각이 지난 좌석은 AVAILABLE이다.",
+        description = "회차의 전체 좌석을 행·열 순서로 돌려준다. 좌석마다 등급, 가격, 상태(AVAILABLE 예약 가능, HELD 임시 배정, PAYING 결제 중, RESERVED 예약 완료)를 담는다. 임시 배정 만료 시각이 지난 좌석은 AVAILABLE이다.",
     )
     @ApiResponse(responseCode = "200", description = "조회 성공")
     @ApiResponse(
@@ -41,7 +41,7 @@ interface PerformanceSeatApi {
     )
     @ApiResponse(
         responseCode = "409",
-        description = "SEAT_NOT_AVAILABLE(이미 임시 배정/예약된 좌석) · PERFORMANCE_ALREADY_STARTED · LOCK_CONFLICT(다시 시도)",
+        description = "SEAT_NOT_AVAILABLE(이미 임시 배정/예약된 좌석) · SEATS_PAYING(내 좌석이 결제 중) · PERFORMANCE_ALREADY_STARTED · LOCK_CONFLICT(다시 시도)",
         content = [Content(schema = Schema(implementation = ErrorResponse::class))],
     )
     fun holdSeats(venueId: Long, showId: Long, performanceId: Long, request: HoldSeatsRequest): HoldSeatsResponse

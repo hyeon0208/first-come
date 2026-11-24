@@ -1,6 +1,7 @@
 package io.github.hyeon0208.firstcome.performance.infrastructure
 
 import io.github.hyeon0208.firstcome.performance.domain.PerformanceSeatEntity
+import io.github.hyeon0208.firstcome.performance.domain.PerformanceSeatStatus
 import jakarta.persistence.LockModeType
 import java.time.LocalDateTime
 import org.springframework.data.jpa.repository.JpaRepository
@@ -23,12 +24,44 @@ interface JpaPerformanceSeatRepository : JpaRepository<PerformanceSeatEntity, Lo
     )
     fun findHeldSeats(performanceId: Long, holderId: Long): List<PerformanceSeatEntity>
 
+    fun existsByPerformanceIdAndHolderIdAndStatus(performanceId: Long, holderId: Long, status: PerformanceSeatStatus): Boolean
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(
+        """
+        update PerformanceSeatEntity ps
+        set ps.status = PAYING, ps.updatedAt = :now
+        where ps.id in :ids and ps.holderId = :holderId and ps.status = HELD and ps.holdExpiresAt >= :now
+        """,
+    )
+    fun startPaying(ids: Collection<Long>, holderId: Long, now: LocalDateTime): Int
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(
+        """
+        update PerformanceSeatEntity ps
+        set ps.status = HELD, ps.updatedAt = :now
+        where ps.id in :ids and ps.holderId = :holderId and ps.status = PAYING
+        """,
+    )
+    fun revertPaying(ids: Collection<Long>, holderId: Long, now: LocalDateTime): Int
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(
+        """
+        update PerformanceSeatEntity ps
+        set ps.status = AVAILABLE, ps.holderId = null, ps.holdExpiresAt = null, ps.updatedAt = :now
+        where ps.id in :ids and ps.holderId = :holderId and ps.status = PAYING
+        """,
+    )
+    fun releasePaying(ids: Collection<Long>, holderId: Long, now: LocalDateTime): Int
+
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(
         """
         update PerformanceSeatEntity ps
         set ps.status = RESERVED, ps.holderId = null, ps.holdExpiresAt = null, ps.updatedAt = :now
-        where ps.id in :ids and ps.holderId = :holderId and ps.status = HELD
+        where ps.id in :ids and ps.holderId = :holderId and ps.status = PAYING and ps.holdExpiresAt >= :now
         """,
     )
     fun reserveSeats(ids: Collection<Long>, holderId: Long, now: LocalDateTime): Int

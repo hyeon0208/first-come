@@ -12,5 +12,6 @@ enum class PerformanceErrorCode(
     SEAT_COUNT_OUT_OF_RANGE(HttpStatus.BAD_REQUEST, "한 번에 1~5석까지 임시 배정할 수 있습니다."),
     DUPLICATED_SEAT(HttpStatus.BAD_REQUEST, "같은 좌석을 두 번 요청했습니다."),
     SEAT_NOT_FOUND(HttpStatus.NOT_FOUND, "이 회차에 없는 좌석입니다."),
+    SEATS_PAYING(HttpStatus.CONFLICT, "결제를 진행 중인 좌석이 있어 좌석을 바꿀 수 없습니다."),
     SEAT_NOT_AVAILABLE(HttpStatus.CONFLICT, "이미 임시 배정되었거나 예약된 좌석이 있습니다."),
 }

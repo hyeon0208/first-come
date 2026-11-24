@@ -55,6 +55,9 @@ class PerformanceSeatWriteService(
         val seatsById = seatRepository.findAllById(performanceSeats.map { it.seatId }).associateBy { it.id }
 
         userRepository.findByIdForUpdate(request.userId) ?: throw BusinessException(UserErrorCode.USER_NOT_FOUND)
+        if (isPaying(performance.id, request.userId)) {
+            throw BusinessException(PerformanceErrorCode.SEATS_PAYING)
+        }
         val heldSeatIds = performanceSeatRepository.findHeldSeats(performance.id, request.userId).map { it.id }
         performanceSeatRepository.findAllByIdInOrderByIdForUpdate((heldSeatIds + selection.performanceSeatIds).distinct())
         val releasedCount = performanceSeatRepository.releaseHolds(performance.id, request.userId, now)
@@ -87,6 +90,24 @@ class PerformanceSeatWriteService(
         return HoldSeatsResponse.of(performance.id, seats, holdExpiresAt)
     }
 
+    fun isPaying(performanceId: Long, holderId: Long): Boolean =
+        performanceSeatRepository.existsByPerformanceIdAndHolderIdAndStatus(performanceId, holderId, PerformanceSeatStatus.PAYING)
+
+    // 결제를 부르기 전에 임시 배정 좌석을 결제 중으로 잠근다. 전부 바꾸지 못하면 아무것도 바꾸지 않은 것으로 본다(호출한 쪽이 롤백한다).
+    fun startPaying(performanceSeatIds: List<Long>, holderId: Long, now: LocalDateTime): Boolean =
+        performanceSeatRepository.startPaying(performanceSeatIds, holderId, now) == performanceSeatIds.size
+
+    // 결제가 승인된 뒤 확정한다. 결제 중이고 만료 시각이 지나지 않았을 때만 바꾼다.
     fun reserveSeats(performanceSeatIds: List<Long>, holderId: Long): Boolean =
         performanceSeatRepository.reserveSeats(performanceSeatIds, holderId, LocalDateTime.now(clock)) == performanceSeatIds.size
+
+    // 결제가 승인되지 않았을 때 임시 배정으로 되돌린다. 만료 시각은 그대로다.
+    fun revertPaying(performanceSeatIds: List<Long>, holderId: Long) {
+        performanceSeatRepository.revertPaying(performanceSeatIds, holderId, LocalDateTime.now(clock))
+    }
+
+    // 결제는 승인됐지만 확정하지 못했을 때 좌석을 푼다.
+    fun releasePaying(performanceSeatIds: List<Long>, holderId: Long) {
+        performanceSeatRepository.releasePaying(performanceSeatIds, holderId, LocalDateTime.now(clock))
+    }
 }

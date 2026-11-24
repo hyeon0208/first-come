@@ -127,5 +127,21 @@ class PerformanceSeatWriteServiceTest : BaseServiceTest() {
                 }
             }
         }
+
+        given("사용자의 좌석 1, 2가 결제 중일 때") {
+            loadInitialData()
+            val userId = fixture.createUser()
+            fixture.holdSeats(userId, performanceId = 1, listOf(1, 2))
+            fixture.createPendingReservation(userId, performanceId = 1, listOf(1, 2), "key-1")
+
+            `when`("같은 사용자가 다른 좌석 3을 임시 배정하려 하면") {
+                val exception = shouldThrow<BusinessException> { fixture.holdSeats(userId, performanceId = 1, listOf(3)) }
+
+                then("SEATS_PAYING으로 거부되고 좌석 3은 예약 가능 그대로다") {
+                    exception.errorCode shouldBe PerformanceErrorCode.SEATS_PAYING
+                    fixture.seatState(3) shouldBe SeatState("AVAILABLE", null, null)
+                }
+            }
+        }
     }
 }

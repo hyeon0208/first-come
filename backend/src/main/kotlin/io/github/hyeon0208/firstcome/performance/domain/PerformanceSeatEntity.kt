@@ -47,7 +47,7 @@ class PerformanceSeatEntity(
     val id: Long = 0L
 
     fun statusAt(now: LocalDateTime): PerformanceSeatStatus =
-        if (holdExpiresAt?.isBefore(now) == true) {
+        if (status == PerformanceSeatStatus.HELD && holdExpiresAt?.isBefore(now) == true) {
             PerformanceSeatStatus.AVAILABLE
         } else {
             status
@@ -56,8 +56,8 @@ class PerformanceSeatEntity(
     init {
         val holdInfoPresent = holderId != null && holdExpiresAt != null
         val holdInfoAbsent = holderId == null && holdExpiresAt == null
-        requireRule(if (status == PerformanceSeatStatus.HELD) holdInfoPresent else holdInfoAbsent) {
-            "임시 배정 상태일 때만 임시 배정 사용자와 만료 시각이 있어야 합니다."
+        requireRule(if (status in PerformanceSeatStatus.OWNED) holdInfoPresent else holdInfoAbsent) {
+            "임시 배정이나 결제 중 상태일 때만 임시 배정 사용자와 만료 시각이 있어야 합니다."
         }
     }
 

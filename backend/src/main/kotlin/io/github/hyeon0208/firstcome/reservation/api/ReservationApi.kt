@@ -34,8 +34,13 @@ interface ReservationApi {
         content = [Content(schema = Schema(implementation = ErrorResponse::class))],
     )
     @ApiResponse(
+        responseCode = "502",
+        description = "PAYMENT_UNAVAILABLE(결제 결과를 받지 못함. 결제는 취소를 요청했고 좌석은 임시 배정 그대로다)",
+        content = [Content(schema = Schema(implementation = ErrorResponse::class))],
+    )
+    @ApiResponse(
         responseCode = "409",
-        description = "HOLD_NOT_FOUND, HOLD_EXPIRED, HOLD_MISMATCH(부분 예약), HOLD_LOST(결제 중 좌석을 잃어 결제를 취소함), PERFORMANCE_ALREADY_STARTED, " +
+        description = "HOLD_NOT_FOUND, HOLD_EXPIRED, HOLD_MISMATCH(부분 예약), PAYMENT_IN_PROGRESS(같은 임시 배정에 결제 진행 중. 멱등 키가 달라도 거절), BOOKING_TIME_EXPIRED(결제 중 임시 배정이 만료됐거나 공연이 시작되어 결제를 취소함), PERFORMANCE_ALREADY_STARTED, " +
             "IDEMPOTENCY_KEY_IN_PROGRESS(같은 멱등 키 처리 중), IDEMPOTENCY_KEY_ALREADY_FAILED(실패로 끝난 멱등 키)",
         content = [Content(schema = Schema(implementation = ErrorResponse::class))],
     )

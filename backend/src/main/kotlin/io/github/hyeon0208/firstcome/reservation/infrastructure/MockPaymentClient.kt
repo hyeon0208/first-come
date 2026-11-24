@@ -27,7 +27,8 @@ class MockPaymentClient : PaymentClient {
             }
         }
 
-    override fun cancel(transactionId: String) {
-        logger.info("모의 결제 취소 transactionId={}", transactionId)
+    override fun cancel(reservationId: Long) {
+        val approval = approvalsByReservationId.remove(reservationId)
+        logger.info("모의 결제 취소 reservationId={} transactionId={}", reservationId, approval?.transactionId)
     }
 }

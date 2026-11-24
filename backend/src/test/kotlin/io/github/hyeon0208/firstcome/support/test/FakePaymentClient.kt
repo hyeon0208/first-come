@@ -8,13 +8,17 @@ import java.util.concurrent.CopyOnWriteArrayList
 
 class FakePaymentClient : PaymentClient {
     val approvedRequests: MutableList<PaymentRequest> = CopyOnWriteArrayList()
-    val cancelledTransactionIds: MutableList<String> = CopyOnWriteArrayList()
+    val cancelledReservationIds: MutableList<Long> = CopyOnWriteArrayList()
 
     @Volatile
     var beforeApprove: (() -> Unit)? = null
 
     @Volatile
     var declinesPayment: Boolean = false
+
+    // 승인은 했는데 응답이 돌아가지 않는 상황
+    @Volatile
+    var losesResponse: Boolean = false
 
     @Volatile
     var failsToCancel: Boolean = false
@@ -23,19 +27,21 @@ class FakePaymentClient : PaymentClient {
         beforeApprove?.invoke()
         if (declinesPayment) throw PaymentDeclinedException("결제가 거절되었습니다.")
         approvedRequests += request
+        if (losesResponse) throw IllegalStateException("결제 응답을 받지 못했습니다.")
         return PaymentApproval(transactionId = "FAKE-${request.reservationId}")
     }
 
-    override fun cancel(transactionId: String) {
+    override fun cancel(reservationId: Long) {
         if (failsToCancel) throw IllegalStateException("결제 취소에 실패했습니다.")
-        cancelledTransactionIds += transactionId
+        cancelledReservationIds += reservationId
     }
 
     fun reset() {
         approvedRequests.clear()
-        cancelledTransactionIds.clear()
+        cancelledReservationIds.clear()
         beforeApprove = null
         declinesPayment = false
+        losesResponse = false
         failsToCancel = false
     }
 }
