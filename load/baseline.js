@@ -2,6 +2,8 @@
 // 가상 사용자 한 명이 연습 한 번을 처음부터 끝까지 한다:
 //   닉네임 → 연습 시작(어려움) → 오픈까지 대기 → 입장 → 좌석 상태 → 좌석 누르기(거절되면 다른 좌석) → 선택 완료 → 가격 확인 → 금액 → 결제
 // 어려움 난이도라 연습마다 가상 경쟁자 1,000명이 서버 안에서 함께 움직인다. 부하의 대부분은 그쪽에서 나온다.
+// 읽을 때 주의: 연습마다 처음 10초(오픈 대기)에는 가상 경쟁자가 움직이지 않고, 사용자가 예매에 성공하면 그 연습의 가상 경쟁자는 멈춘다.
+// 그래서 같은 순간에 실제로 겹치는 부하는 "동시 연습 N개"보다 낮다.
 //
 // 실행은 load/run-baseline.sh 가 한다(동시 연습 수마다 한 번씩).
 import { check, sleep } from 'k6'
@@ -16,11 +18,26 @@ const DIFFICULTY = __ENV.DIFFICULTY || 'HARD'
 const WANTED_SEATS = 2
 const MAX_PRESSES = 12
 
+const REQUEST_NAMES = [
+  'POST /users',
+  'POST /performances',
+  'POST /booking/enter',
+  'GET /booking/seats',
+  'POST /booking/seats/{id}/preselect',
+  'POST /booking/hold',
+  'POST /booking/prices/validate',
+  'GET /reservations/quote',
+  'POST /reservations',
+  'GET /records',
+]
+
 export const options = {
   scenarios: {
     practice: { executor: 'constant-vus', vus: VUS, duration: DURATION, gracefulStop: '40s' },
   },
   summaryTrendStats: ['avg', 'med', 'p(95)', 'p(99)', 'max'],
+  // 요청 종류별 응답 시간을 요약에 따로 내려고 둔다(늘 통과하는 조건이다).
+  thresholds: Object.fromEntries(REQUEST_NAMES.map((name) => [`http_req_duration{name:${name}}`, ['max>=0']])),
 }
 
 // 연습이 끝난 방식별 횟수
@@ -162,5 +179,13 @@ function summaryText(data) {
   lines.push(`요청: ${count('http_reqs')}건 (${metric('http_reqs').values.rate.toFixed(1)}건/초), 실패율 ${(metric('http_req_failed').values.rate * 100).toFixed(2)}%`)
   const duration = metric('http_req_duration').values
   lines.push(`응답 시간(ms): 중간 ${duration.med.toFixed(0)}, p95 ${duration['p(95)'].toFixed(0)}, p99 ${duration['p(99)'].toFixed(0)}, 최대 ${duration.max.toFixed(0)}`)
+  lines.push('요청별 응답 시간(ms): 중간 / p95 / p99 / 최대')
+  for (const name of REQUEST_NAMES) {
+    const values = metric(`http_req_duration{name:${name}}`)?.values
+    if (values) lines.push(`  ${name.padEnd(36)} ${values.med.toFixed(0)} / ${values['p(95)'].toFixed(0)} / ${values['p(99)'].toFixed(0)} / ${values.max.toFixed(0)}`)
+  }
+  const booking = metric('booking_duration')?.values
+  if (booking) lines.push(`좌석 누르기부터 결제까지(ms): 중간 ${booking.med.toFixed(0)}, p95 ${booking['p(95)'].toFixed(0)}`)
+  lines.push(`좌석 거절(가상 경쟁자가 먼저 잡음): ${count('seat_rejected')}건`)
   return lines.join('\n') + '\n'
 }

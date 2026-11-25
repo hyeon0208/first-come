@@ -62,16 +62,19 @@ GLOSSARY.md     용어
 
 ## 확인
 
-| 무엇을 | 어떻게 |
-|---|---|
-| 닉네임부터 내 예매까지 한 번에 끝나고, 다시 시작하면 새 회차로 된다 | `npm --prefix frontend run e2e` (compose로 띄운 뒤), `BookingFlowApiTest` |
-| 가상 경쟁자가 먼저 잡은 좌석은 서버가 거절한다 | `CompetitorTakesSeatTest`, e2e의 두 번째 테스트 |
-| 결제 중 예매 가능 시간이 끝나거나 공연이 시작되면 확정하지 않고 결제를 취소한다 | `ReservationRecheckTest` |
-| 같은 선점에 다른 멱등 키로 동시에 요청해도 결제 승인은 한 번이다 | `ReservationSinglePaymentConcurrencyTest` |
-| 같은 좌석을 여럿이 노리면 한 명만 가져가고 교착이 없다(실제 MySQL) | `PerformanceSeatConcurrencyTest` |
-| 모듈 경계 | `ModularityTest` |
-| compose 한 번으로 네 서비스가 뜬다 | `scripts/check-compose.sh` |
-| 난이도별 매진 시간 | `./gradlew :backend:test -Pslow` (`DifficultyCalibrationTest`) |
+| # | 무엇을 | 어떻게 |
+|---|---|---|
+| 1 | 닉네임부터 내 예매까지 한 번에 끝나고, 다시 시작하면 새 회차로 된다 | `npm --prefix frontend run e2e` (compose로 띄운 뒤), `BookingFlowApiTest` |
+| 2 | 가상 경쟁자가 먼저 잡은 좌석은 서버가 거절한다 | `CompetitorTakesSeatTest`, e2e의 두 번째 테스트 |
+| 3 | 결제 중 예매 가능 시간이 끝나거나 공연이 시작되면 확정하지 않고 결제를 취소한다 | `ReservationRecheckTest` |
+| 4 | 같은 선점에 다른 멱등 키로 동시에 요청해도 결제 승인은 한 번이다 | `ReservationSinglePaymentConcurrencyTest` |
+| 5 | 같은 좌석을 여럿이 노리면 한 명만 가져가고 교착이 없다(실제 MySQL) | `PerformanceSeatConcurrencyTest` |
+| 6 | 모듈 경계 | `ModularityTest` |
+| 7 | compose 한 번으로 네 서비스가 뜬다 | `scripts/check-compose.sh` |
+| 8 | 동시 연습 수를 올려 가며 처리량, 응답 시간, 먼저 막히는 곳을 잰다 | `load/run-baseline.sh` (결과는 `load/results/`) |
+| 9 | 이 서비스에 없는 규칙과 이름이 들어오지 않았다 | `scripts/check-no-traces.sh` |
+
+난이도별 매진 시간은 `./gradlew :backend:test -Pslow`(`DifficultyCalibrationTest`)로 잰다.
 
 ```bash
 ./gradlew build                     # 백엔드와 모의 결제 서버의 테스트(Docker가 필요하다: Testcontainers MySQL)

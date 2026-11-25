@@ -8,3 +8,10 @@ spring:
 
 payment:
   base-url: ${PAYMENT_BASE_URL:http://localhost:8081}
+
+# 이 컴퓨터에서 띄울 때만 수치를 연다. 부하를 잴 때 커넥션 풀 대기 같은 근거를 여기서 읽는다(load/run-baseline.sh).
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics

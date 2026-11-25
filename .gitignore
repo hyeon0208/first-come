@@ -18,6 +18,9 @@ frontend/playwright-report/
 frontend/.env.local
 frontend/.env.*.local
 
+# 부하 측정의 원자료(요약 문서만 남긴다)
+load/results/*-raw/
+
 # 환경 값
 /.env
 
