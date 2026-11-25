@@ -146,10 +146,10 @@ class PerformanceLifecycleTest : BaseServiceTest() {
             }
         }
 
-        given("동시에 진행되는 회차가 상한(10개)에 닿았을 때") {
-            repeat(10) { fixture.createPerformance(fixture.createUser()) }
+        given("동시에 진행되는 회차가 상한(설정값)에 닿았을 때") {
+            repeat(bookingProperties.maxActivePerformances.toInt()) { fixture.createPerformance(fixture.createUser()) }
 
-            `when`("11번째 사용자가 연습을 시작하려 하면") {
+            `when`("한 사용자가 더 연습을 시작하려 하면") {
                 val exception = shouldThrow<BusinessException> { fixture.createPerformance(fixture.createUser()) }
 
                 then("PRACTICE_FULL로 거절된다") {

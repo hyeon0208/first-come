@@ -45,7 +45,7 @@ services:
       DATABASE_PASSWORD: firstcome
       PAYMENT_BASE_URL: http://payment-mock:8081
       # 동시에 진행되는 연습 수의 상한. 부하를 잴 때만 올린다(load/run-baseline.sh).
-      BOOKING_MAX_ACTIVE_PERFORMANCES: ${BOOKING_MAX_ACTIVE_PERFORMANCES:-10}
+      BOOKING_MAX_ACTIVE_PERFORMANCES: ${BOOKING_MAX_ACTIVE_PERFORMANCES:-5}
       TZ: Asia/Seoul
       JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=75
     ports:

@@ -7,13 +7,15 @@
 #   load/run-baseline.sh                              # 동시 연습 5, 10, 20, 40개를 2분씩
 #   VUS_LIST="1" DURATION=30s load/run-baseline.sh    # 스크립트가 도는지만 확인
 #
-# 먼저 서버를 띄운다. 동시 연습 상한(기본 10)은 측정하는 동안 풀어 둔다:
+# 먼저 서버를 띄운다. 동시 연습 상한(기본 5)은 측정하는 동안 풀어 둔다:
 #   BOOKING_MAX_ACTIVE_PERFORMANCES=1000 docker compose up -d --build
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 VUS_LIST=${VUS_LIST:-"5 10 20 40"}
 DURATION=${DURATION:-2m}
+# 입장 뒤 좌석을 누르기 전에 쉬는 초(사람처럼). 0이면 곧바로 누른다.
+THINK_SECONDS=${THINK_SECONDS:-0}
 NAME=$(date +%Y-%m-%d)-raw
 OUT=load/results/$NAME
 mkdir -p "$OUT"
@@ -38,15 +40,16 @@ sample() {
 }
 
 for vus in $VUS_LIST; do
-  echo "== 동시 연습 ${vus}개"
-  echo "시작 mysql $(mysql_status)" > "$OUT/samples-$vus.txt"
-  sample >> "$OUT/samples-$vus.txt" &
+  label="$vus-think$THINK_SECONDS"
+  echo "== 동시 연습 ${vus}개, 입장 뒤 쉬는 시간 ${THINK_SECONDS}초"
+  echo "시작 mysql $(mysql_status)" > "$OUT/samples-$label.txt"
+  sample >> "$OUT/samples-$label.txt" &
   sample_pid=$!
-  docker run --rm -i -v "$PWD/load:/load" -e VUS="$vus" -e DURATION="$DURATION" -e SUMMARY_PATH="/load/results/$NAME/summary-$vus.json" \
-    grafana/k6 run --quiet /load/baseline.js | tee "$OUT/summary-$vus.txt"
+  docker run --rm -i -v "$PWD/load:/load" -e VUS="$vus" -e DURATION="$DURATION" -e THINK_SECONDS="$THINK_SECONDS" -e SUMMARY_PATH="/load/results/$NAME/summary-$label.json" \
+    grafana/k6 run --quiet /load/baseline.js | tee "$OUT/summary-$label.txt"
   kill "$sample_pid" 2>/dev/null || true
   wait "$sample_pid" 2>/dev/null || true
-  echo "끝 mysql $(mysql_status)" >> "$OUT/samples-$vus.txt"
+  echo "끝 mysql $(mysql_status)" >> "$OUT/samples-$label.txt"
   # 다음 단계 전에 남은 회차가 끝나기를 기다린다.
   sleep 20
 done

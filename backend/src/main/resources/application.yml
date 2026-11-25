@@ -52,8 +52,9 @@ booking:
   paying-grace: 1m
   # 끝난 회차의 좌석과 예매 데이터를 지우기까지
   purge-delay: 10m
-  # 동시에 진행되는 회차 수의 상한
-  max-active-performances: 10
+  # 동시에 진행되는 회차 수의 상한. 기준 부하 측정(load/results/2026-11-25-baseline.md)에서
+  # 어려움 난이도 5개까지는 응답이 3초 안이었고 10개부터 커넥션 풀 대기가 쌓였다.
+  max-active-performances: 5
   # 방치된 회차를 끝내고 끝난 회차를 지우는 작업의 주기
   sweep-interval: PT5S
   sweep-enabled: true

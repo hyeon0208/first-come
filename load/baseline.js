@@ -15,6 +15,9 @@ const API = `${BASE}/api/v1`
 const VUS = Number(__ENV.VUS || 1)
 const DURATION = __ENV.DURATION || '2m'
 const DIFFICULTY = __ENV.DIFFICULTY || 'HARD'
+// 입장한 뒤 좌석을 누르기 전에 쉬는 초. 0이면 기계처럼 곧바로 누른다.
+// 사람은 좌석을 고르는 데 시간이 걸리고, 그동안 그 회차의 가상 경쟁자가 모두 움직인다.
+const THINK_SECONDS = Number(__ENV.THINK_SECONDS || 0)
 const WANTED_SEATS = 2
 const MAX_PRESSES = 12
 
@@ -102,6 +105,7 @@ export default function (data) {
   const entered = post('/booking/enter', null, run, 'POST /booking/enter')
   if (!check(entered, { '입장 200': (r) => r.status === 200 })) return abandon()
 
+  sleep(THINK_SECONDS)
   const startedAt = Date.now()
   const statuses = json(get('/booking/seats', run, 'GET /booking/seats'))
   if (!statuses) return abandon()
@@ -174,7 +178,7 @@ export function handleSummary(data) {
 function summaryText(data) {
   const metric = (name) => data.metrics[name]
   const count = (name) => (metric(name) ? metric(name).values.count : 0)
-  const lines = [`동시 연습 ${VUS}개, ${DURATION}, 난이도 ${DIFFICULTY}`]
+  const lines = [`동시 연습 ${VUS}개, ${DURATION}, 난이도 ${DIFFICULTY}, 입장 뒤 쉬는 시간 ${THINK_SECONDS}초`]
   lines.push(`연습 결과: 성공 ${count('practice_success')}, 매진 ${count('practice_sold_out')}, 자리 없음 ${count('practice_rejected_full')}, 실패 ${count('practice_failed')}`)
   lines.push(`요청: ${count('http_reqs')}건 (${metric('http_reqs').values.rate.toFixed(1)}건/초), 실패율 ${(metric('http_req_failed').values.rate * 100).toFixed(2)}%`)
   const duration = metric('http_req_duration').values
