@@ -7,6 +7,7 @@ import io.github.hyeon0208.firstcome.performance.PerformanceCreated
 import io.github.hyeon0208.firstcome.performance.PerformanceEnded
 import io.github.hyeon0208.firstcome.performance.application.BookingProperties
 import io.github.hyeon0208.firstcome.performance.application.PerformanceReadService
+import io.github.hyeon0208.firstcome.performance.application.PerformanceSeatReadService
 import io.github.hyeon0208.firstcome.performance.application.PerformanceSeatWriteService
 import io.github.hyeon0208.firstcome.performance.application.dto.PreselectResult
 import io.github.hyeon0208.firstcome.reservation.application.ReservationFacade
@@ -36,6 +37,7 @@ class CompetitorRunner(
     private val showReadService: ShowReadService,
     private val performanceReadService: PerformanceReadService,
     private val performanceSeatWriteService: PerformanceSeatWriteService,
+    private val performanceSeatReadService: PerformanceSeatReadService,
     private val reservationFacade: ReservationFacade,
     private val clock: Clock,
 ) {
@@ -122,22 +124,30 @@ class CompetitorRunner(
         val selected = mutableListOf<SeatResponse>()
         var rejections = 0
         while (selected.size < plan.wantedSeats && rejections < MAX_REJECTIONS && !run.isStopped) {
-            val believedAvailable = run.seatPicker.pick(random, run.takenSeatIds, selected)
-            val seat = believedAvailable ?: run.seatPicker.pickAny(random)
+            // 남은 좌석이 없다고 알고 있으면 좌석 상태를 새로 받는다(사용자가 새로고침을 누르는 것과 같다).
+            // 그사이 누군가 놓은 좌석이 있으면 그 좌석을 노리고, 정말 매진이면 그만둔다.
+            val seat = run.seatPicker.pick(random, run.takenSeatIds, selected)
+                ?: refreshAndPick(run, plan, random, selected)
+                ?: break
             val result = performanceSeatWriteService.preselect(run.performanceId, plan.participantNo, seat.seatId)
             run.takenSeatIds += seat.seatId
             when (result) {
-                PreselectResult.SELECTED -> if (seat !in selected) selected += seat
+                PreselectResult.SELECTED -> selected += seat
                 PreselectResult.TAKEN -> rejections++
                 PreselectResult.SOLD_OUT -> break
-            }
-            // 팔린 줄 아는 좌석뿐일 때는 하나만 눌러 보고 그만둔다.
-            if (believedAvailable == null && result != PreselectResult.SELECTED) {
-                break
             }
             pause(random, competitorProperties.pressIntervalMin, competitorProperties.pressIntervalMax)
         }
         return selected
+    }
+
+    private fun refreshAndPick(run: CompetitorRun, plan: CompetitorPlan, random: Random, selected: List<SeatResponse>): SeatResponse? {
+        val statuses = performanceSeatReadService.getSeatStatuses(run.performanceId, plan.participantNo)
+        if (statuses.soldOut) {
+            return null
+        }
+        run.replaceTakenSeats(statuses.unavailableSeatIds + statuses.mySeatIds)
+        return run.seatPicker.pick(random, run.takenSeatIds, selected)
     }
 
     private fun pause(random: Random, min: Duration, max: Duration) {

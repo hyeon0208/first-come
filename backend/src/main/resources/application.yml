@@ -68,7 +68,7 @@ competitor:
   checkout-delay-min: 500ms
   checkout-delay-max: 1500ms
   # 좌석은 1,008석이다. sold-out-seconds는 화면에 보여 주는 매진까지의 대략적인 시간이고, 비우면 매진되지 않는 난이도다.
-  # 값은 가상 경쟁자만 돌려 잰 것이다(DifficultyCalibrationTest, 2026-11-25: 보통 98.7초, 어려움 10.6초).
+  # 값은 가상 경쟁자만 돌려 잰 것이다(DifficultyCalibrationTest, 2026-11-25에 두 번: 보통 98.7초·93.4초, 어려움 10.6초·10.3초).
   difficulties:
     easy:
       count: 200

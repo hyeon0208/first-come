@@ -11,7 +11,13 @@ class CompetitorRun(
     val seatPicker: SeatPicker,
 ) {
     // 가상 경쟁자들이 팔린 것으로 아는 좌석. 자기들이 잡은 좌석과, 눌렀다가 거절당한 좌석이다.
+    // 실제 상태와 조금 어긋날 수 있다(사용자가 놓은 좌석 등). 남은 좌석이 없어 보이면 서버에서 다시 받아 바꾼다.
     val takenSeatIds: MutableSet<Long> = ConcurrentHashMap.newKeySet()
+
+    fun replaceTakenSeats(seatIds: Collection<Long>) {
+        takenSeatIds.retainAll(seatIds.toSet())
+        takenSeatIds.addAll(seatIds)
+    }
 
     private val scheduled = mutableListOf<ScheduledFuture<*>>()
 

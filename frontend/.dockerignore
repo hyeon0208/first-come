@@ -2,3 +2,7 @@ node_modules
 dist
 .env.local
 .env.*.local
+e2e
+playwright.config.ts
+test-results
+playwright-report

@@ -18,10 +18,6 @@ class SeatPicker(
         return nearestInSameRow(candidates, selected.lastOrNull()) ?: pickByWeight(random, candidates)
     }
 
-    // 팔린 줄 알지만 그사이 풀렸을 수 있다. 아무 좌석이나 하나 눌러 본다.
-    fun pickAny(random: Random): SeatResponse =
-        seats[random.nextInt(seats.size)]
-
     private fun nearestInSameRow(candidates: List<SeatResponse>, last: SeatResponse?): SeatResponse? {
         if (last == null) {
             return null

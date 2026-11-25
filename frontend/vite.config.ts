@@ -13,5 +13,7 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: './src/test/setup.ts',
     css: false,
+    // e2e 폴더는 Playwright가 돌린다.
+    include: ['src/**/*.test.{ts,tsx}'],
   },
 })
