@@ -1,0 +1,4 @@
+- 스키마는 배포 전까지 `backend/src/main/resources/db/migration/V1__init.sql` 하나만 고친다. 고친 뒤에는 `docker compose down -v`로 로컬 DB를 지우고 다시 띄운다(안 지우면 Flyway 체크섬이 어긋나 백엔드가 뜨지 않는다).
+- `docker compose up -d --build <서비스>`는 의존하는 백엔드도 다시 띄운다. 바로 e2e를 돌리면 첫 테스트가 실패하므로 `scripts/check-compose.sh`(헬스 대기 포함)를 먼저 돌린다(2026-11-25 두 번 겪음).
+- Kotest `BehaviorSpec`에서 한 `given` 안의 `when`들은 차례로 이어져 상태를 공유한다. 서로 다른 처음 상태가 필요하면 `given`을 나눈다(2026-11-25 테스트 4개가 이 때문에 실패).
+- 좌석 상태는 `JpaPerformanceSeatRepository`의 조건부 UPDATE로만 바꾼다. UPDATE는 영속성 컨텍스트를 비우므로, 그 전에 읽은 엔티티를 뒤에서 고치지 않는다.
